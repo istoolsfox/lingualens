@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
     baseUrl: '',
     model: '',
     temperature: 0.3,
-    maxTokens: 4096,
+    maxTokens: 8192,
     timeoutMs: 60000,
     strictJson: false,
   },

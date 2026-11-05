@@ -11,6 +11,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
 const outDir = join(root, 'output');
 mkdirSync(outDir, { recursive: true });
+const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 function crc32Table() {
   const t = new Int32Array(256);
@@ -91,6 +92,6 @@ end.writeUInt32LE(cdBuf.length, 12);
 end.writeUInt32LE(offset, 16);
 
 const zip = Buffer.concat([...chunks, cdBuf, end]);
-const out = join(outDir, 'lingualens-v0.1.0.zip');
+const out = join(outDir, `lingualens-v${version}.zip`);
 writeFileSync(out, zip);
 console.log(`zip: ${out} (${files.length} files, ${(zip.length / 1024).toFixed(0)} KB)`);

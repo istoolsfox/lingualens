@@ -36,6 +36,24 @@ export interface Snapshot {
   rect?: { x: number; y: number; width: number; height: number };
   /** 快照来源 */
   source: 'floating-bar' | 'icon-activate' | 'manual-input' | 'library';
+  /** 原文超长被截断 */
+  truncated?: boolean;
+}
+
+/** 整文翻译的正文提取结果（Readability） */
+export interface ArticlePayload {
+  title: string;
+  byline?: string;
+  siteName?: string;
+  url: string;
+  blocks: { id: number; text: string }[];
+  /** 超长被截断 */
+  truncated?: boolean;
+}
+
+/** SW → CS：请求提取正文（快捷键触发） */
+export interface ArticleExtractRequest {
+  type: 'DO_EXTRACT_ARTICLE';
 }
 
 export type Msg =
@@ -43,6 +61,8 @@ export type Msg =
   | { type: 'OPEN_PANEL' }
   | { type: 'ANALYZE'; snapshot: Snapshot; mode?: Mode; depth?: Depth }
   | { type: 'LIGHT_ACTION'; snapshot: Snapshot; action: LightAction }
+  | { type: 'ARTICLE_TRANSLATE'; payload: ArticlePayload }
+  | { type: 'ARTICLE_CANCEL' }
   | { type: 'ANALYZE_CANCEL'; analysisId: string }
   | { type: 'FOLLOWUP'; analysisId: string; question: string; ctx?: { snapshot: Snapshot; analysis: AnalysisResult | LightResult } }
   | { type: 'FOLLOWUP_CANCEL'; analysisId: string }
@@ -59,6 +79,8 @@ export type Msg =
 /** GET_STATE 响应 */
 export interface GetStateResponse {
   pending?: { snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' };
+  articlePending?: ArticlePayload;
+  article?: ArticleStateView;
   restricted: boolean;
   sessions: unknown[];
 }
@@ -108,7 +130,37 @@ export interface PendingMsg {
   action: 'analyze' | 'translate' | 'explain';
 }
 
-export type PortSwMsg = AnalysisChunkMsg | AnalysisDoneMsg | SessionStateMsg | PendingMsg;
+/** SW → Panel：快捷键触发整文翻译 */
+export interface PendingArticleMsg {
+  type: 'pending-article';
+  payload: ArticlePayload;
+}
+
+/** SW → Panel：整文翻译逐批进度 */
+export interface ArticleBatchMsg {
+  type: 'article_batch';
+  index: number;
+  total: number;
+  items: { id: number; natural: string }[];
+}
+
+export interface ArticleStateView {
+  payload: ArticlePayload | null;
+  running: boolean;
+  totalBatches: number;
+  doneBatches: number;
+  results: Record<number, string>;
+  errorCode?: string;
+  truncated?: boolean;
+}
+
+export type PortSwMsg =
+  | AnalysisChunkMsg
+  | AnalysisDoneMsg
+  | SessionStateMsg
+  | PendingMsg
+  | PendingArticleMsg
+  | ArticleBatchMsg;
 
 export type PortPanelMsg = { type: 'hello' } | { type: 'resync'; analysisId: string };
 

@@ -1,14 +1,15 @@
 // ============================================================
-// content/index.ts —— 选区捕获 + 浮动工具栏（Shadow DOM）
+// content/index.ts —— 选区捕获 + 浮动工具栏（Shadow DOM）+ 正文提取
 // 职责刻意保持最小：捕获快照、渲染浮动栏、发消息。
 // 不做 AI 调用、不做存储逻辑。
 // ============================================================
 
-import type { Snapshot } from '../shared/messages';
+import { Readability } from '@mozilla/readability';
+import type { ArticleExtractRequest, ArticlePayload, Snapshot } from '../shared/messages';
+import { ARTICLE_MAX_CHARS, MAX_SELECTION_LENGTH } from '../shared/constants';
 
 const BAR_ID = 'lingualens-bar-host';
 const CONTEXT_LIMIT = 300;
-const MAX_SELECTION = 2000;
 
 interface Captured {
   snapshot: Snapshot;
@@ -73,17 +74,19 @@ function captureContext(range: Range): { before: string; after: string } {
 function buildSnapshot(range: Range, source: Snapshot['source']): Snapshot | null {
   const raw = range.toString().replace(/\s+/g, ' ').trim();
   if (!raw || !hasLatin(raw)) return null;
-  if (raw.length > MAX_SELECTION) return null; // 超长不弹浮动栏（手动输入可处理）
   const rect = range.getBoundingClientRect();
   const ctx = captureContext(range);
+  // 超长选区：截断后照常浮动（提示条会显示"长文已截断"），不再静默丢弃
+  const truncated = raw.length > MAX_SELECTION_LENGTH;
   return {
-    text: raw,
+    text: truncated ? raw.slice(0, MAX_SELECTION_LENGTH) : raw,
     contextBefore: ctx.before,
     contextAfter: ctx.after,
     url: location.href,
     title: document.title,
     rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     source,
+    truncated,
   };
 }
 
@@ -129,6 +132,7 @@ function ensureHost(): ShadowRoot {
     '<span class="sep"></span>',
     '<button class="btn" data-act="favorite">收藏</button>',
     '<button class="btn close" data-act="close" title="关闭">✕</button>',
+    '<span class="warn" hidden style="color:#fbbf24;font-size:11px;padding:0 6px;">长文已截断</span>',
   ].join('');
   root.append(style, bar);
   document.documentElement.appendChild(host);
@@ -169,6 +173,8 @@ function showBar(snapshot: Snapshot): void {
   if (y < 8) y = 8;
   bar.style.left = `${Math.round(x)}px`;
   bar.style.top = `${Math.round(y)}px`;
+  const warn = bar.querySelector('.warn') as HTMLElement | null;
+  if (warn) warn.hidden = !snapshot.truncated;
   bar.classList.add('show');
 }
 
@@ -228,3 +234,55 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 
 // 页面卸载清理
 window.addEventListener('pagehide', hideBar);
+
+// ---------- 快捷键触发的正文提取（Readability，只取文章主体） ----------
+
+function extractArticle(): ArticlePayload | { error: string } {
+  try {
+    const clone = document.cloneNode(true) as Document;
+    const article = new Readability(clone).parse();
+    if (!article?.content) return { error: 'no_article' };
+
+    const doc = new DOMParser().parseFromString(article.content, 'text/html');
+    const nodes = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
+    const blocks: { id: number; text: string }[] = [];
+    let id = 0;
+    let total = 0;
+    let truncated = false;
+    for (const n of nodes) {
+      const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
+      if (text.length < 2) continue;
+      if (total + text.length > ARTICLE_MAX_CHARS) {
+        truncated = true;
+        break;
+      }
+      blocks.push({ id: id++, text });
+      total += text.length;
+    }
+    if (blocks.length === 0) return { error: 'no_article' };
+
+    return {
+      title: article.title || document.title,
+      byline: article.byline || undefined,
+      siteName: article.siteName || undefined,
+      url: location.href,
+      blocks,
+      truncated,
+    };
+  } catch {
+    return { error: 'no_article' };
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
+  const m = msg as Partial<ArticleExtractRequest>;
+  if (m?.type !== 'DO_EXTRACT_ARTICLE') return false;
+  const result = extractArticle();
+  if ('error' in result) {
+    sendResponse({ error: result.error });
+  } else {
+    void chrome.runtime.sendMessage({ type: 'ARTICLE_TRANSLATE', payload: result }).catch(() => undefined);
+    sendResponse({ ok: true, blocks: result.blocks.length });
+  }
+  return false; // 同步响应
+});

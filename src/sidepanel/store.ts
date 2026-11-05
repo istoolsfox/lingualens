@@ -8,6 +8,7 @@ import { guessMode } from '../ai/router';
 import { extractOverviewPartial, type OverviewPartial } from '../ai/streamExtract';
 import {
   PORT_NAME,
+  type ArticlePayload,
   type GetStateResponse,
   type PortSwMsg,
   type SessionView,
@@ -43,7 +44,17 @@ import {
 import { exportToFile, importFromFile } from '../storage/backup';
 import { getSettings, onSettingsChanged } from '../storage/settings';
 
-export type ViewKey = 'analysis' | 'library' | 'practice';
+export type ViewKey = 'analysis' | 'library' | 'practice' | 'article';
+
+export interface ArticleSlice {
+  phase: 'idle' | 'running' | 'done' | 'error';
+  payload: ArticlePayload | null;
+  results: Record<number, string>;
+  totalBatches: number;
+  doneBatches: number;
+  errorCode?: string;
+  errorMessage?: string;
+}
 export type TabKey = 'overview' | 'structure' | 'grammar' | 'vocab' | 'collocations' | 'expression' | 'chat';
 
 function sendMessage<T = unknown>(msg: unknown): Promise<T> {
@@ -96,6 +107,12 @@ export interface PanelState {
   practiceBusy: string | null;
   practiceError: string | null;
 
+  article: ArticleSlice;
+
+  beginArticle(payload: ArticlePayload): void;
+  cancelArticleAct(): void;
+  retryArticle(): Promise<void>;
+
   init(): Promise<void>;
   setView(v: ViewKey): void;
   setTab(t: TabKey): void;
@@ -145,6 +162,17 @@ export const useStore = create<PanelState>()((set, get) => {
       void st.startFromSnapshot(msg.snapshot, msg.action);
       return;
     }
+    if (msg.type === 'pending-article') {
+      get().beginArticle(msg.payload);
+      return;
+    }
+    if (msg.type === 'article_batch') {
+      const art = get().article;
+      const results = { ...art.results };
+      for (const it of msg.items) results[it.id] = it.natural;
+      set({ article: { ...art, results, doneBatches: Math.max(art.doneBatches, msg.index + 1), totalBatches: msg.total } });
+      return;
+    }
     if (msg.type === 'chunk') {
       if (msg.channel.startsWith('analysis:')) {
         const id = msg.channel.slice('analysis:'.length);
@@ -182,6 +210,15 @@ export const useStore = create<PanelState>()((set, get) => {
           return;
         }
         void refreshSession(st.session?.id ?? null).then(() => set({ chatStreaming: false }));
+      } else if (msg.channel === 'article') {
+        const art = get().article;
+        if (!msg.ok) {
+          set({
+            article: { ...art, phase: 'error', errorCode: msg.errorCode, errorMessage: msg.errorMessage },
+          });
+        } else {
+          set({ article: { ...art, phase: 'done' } });
+        }
       }
     }
   }
@@ -277,6 +314,42 @@ export const useStore = create<PanelState>()((set, get) => {
     practiceBusy: null,
     practiceError: null,
 
+    article: {
+      phase: 'idle',
+      payload: null,
+      results: {},
+      totalBatches: 0,
+      doneBatches: 0,
+    },
+
+    beginArticle(payload) {
+      set({
+        view: 'article',
+        article: {
+          phase: 'running',
+          payload,
+          results: {},
+          totalBatches: 0,
+          doneBatches: 0,
+          errorCode: undefined,
+          errorMessage: undefined,
+        },
+      });
+    },
+
+    cancelArticleAct() {
+      void sendMessage({ type: 'ARTICLE_CANCEL' });
+      const art = get().article;
+      set({ article: { ...art, phase: 'error', errorCode: 'aborted' } });
+    },
+
+    async retryArticle() {
+      const payload = get().article.payload;
+      if (!payload) return;
+      await sendMessage({ type: 'ARTICLE_TRANSLATE', payload });
+      get().beginArticle(payload);
+    },
+
     async init() {
       connectPort();
       const settings = await getSettings();
@@ -292,6 +365,20 @@ export const useStore = create<PanelState>()((set, get) => {
       if (state.pending) {
         set({ manualOpen: false });
         await get().startFromSnapshot(state.pending.snapshot, state.pending.action);
+      } else if (state.article?.payload) {
+        // 整文翻译进行中/已完成：恢复视图
+        const a = state.article;
+        set({
+          view: 'article',
+          article: {
+            phase: a.running ? 'running' : a.errorCode ? 'error' : 'done',
+            payload: a.payload,
+            results: a.results,
+            totalBatches: a.totalBatches,
+            doneBatches: a.doneBatches,
+            errorCode: a.errorCode,
+          },
+        });
       } else if (state.restricted) {
         set({ restrictedHint: true, manualOpen: true });
       } else if (latest && latest.status === 'done') {

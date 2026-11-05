@@ -13,6 +13,7 @@ import translateMd from '../../prompts/translate.md?raw';
 import explainMd from '../../prompts/explain.md?raw';
 import practiceGenerateMd from '../../prompts/practice_generate.md?raw';
 import practiceGradeMd from '../../prompts/practice_grade.md?raw';
+import articleTranslateMd from '../../prompts/article_translate.md?raw';
 
 import wordSchema from '../../prompts/schemas/word.json';
 import phraseSchema from '../../prompts/schemas/phrase.json';
@@ -20,8 +21,9 @@ import sentenceSchema from '../../prompts/schemas/sentence.json';
 import paragraphSchema from '../../prompts/schemas/paragraph.json';
 import lightSchema from '../../prompts/schemas/light.json';
 import practiceSchema from '../../prompts/schemas/practice.json';
+import articleSchema from '../../prompts/schemas/article.json';
 
-import { DEPTH_LABELS, LEVEL_LABELS } from '../shared/constants';
+import { DEPTH_LABELS, LEVEL_LABELS, LONG_TEXT_THRESHOLD } from '../shared/constants';
 import type { Snapshot } from '../shared/messages';
 import type { Settings } from '../shared/settings';
 import type { AnalysisResult, ChatMessage, LightAction, LightResult, Mode, Question } from '../shared/types';
@@ -81,6 +83,12 @@ function appendSchema(user: string, schema: object): string {
   return `${user}\n\n[输出 JSON Schema contract]\n${JSON.stringify(schema)}`;
 }
 
+/** 长文附加指令：内容很长时输出瘦身，防止 JSON 被输出上限截断 */
+export function longTextHint(textLength: number): string {
+  if (textLength <= LONG_TEXT_THRESHOLD) return '';
+  return ' 注意：选中内容较长。请侧重整体理解：translation/chunks/summary 必须完整；grammar_points 最多 3 条、vocabulary 最多 3 条、collocations 与 expression 仅保留最关键的 2 条，chunks 可按句群合并。确保 JSON 完整闭合。';
+}
+
 /** 四模式分析 prompt */
 export function buildAnalysisPrompt(
   mode: Mode,
@@ -89,7 +97,8 @@ export function buildAnalysisPrompt(
   ctx: PromptContext,
 ): BuiltPrompt {
   const template = MODE_TEMPLATES[mode];
-  const vars = commonVars(ctx, { MODE_HINT: routeHint(guess, manual) });
+  const hint = routeHint(guess, manual) + longTextHint(ctx.snapshot.text.length);
+  const vars = commonVars(ctx, { MODE_HINT: hint });
   const user = fill(template, vars);
   return {
     system: fill(disciplineMd, {}),
@@ -193,3 +202,16 @@ export function buildPracticeGradePrompt(questions: Question[], answers: { quest
 /** 重试提示（L3：解析失败后追加的纠偏指令） */
 export const RETRY_INSTRUCTION =
   '你上一次的输出无法解析为合法 JSON。请重新输出：只输出一个合法 JSON 对象，不要 markdown 围栏、不要任何解释文字、字符串内正确转义引号。';
+
+/** 整文翻译批次 prompt */
+export function buildArticleBatchPrompt(
+  title: string,
+  blocks: { id: number; text: string }[],
+): BuiltPrompt {
+  const user = fill(articleTranslateMd, {
+    ARTICLE_TITLE: title || '(未知标题)',
+    BLOCKS_JSON: JSON.stringify(blocks),
+  });
+  const schema = articleSchema as object;
+  return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_article' };
+}

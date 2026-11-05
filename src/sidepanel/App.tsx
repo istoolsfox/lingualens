@@ -5,6 +5,7 @@
 import { useEffect } from 'react';
 import { useStore } from './store';
 import { AnalysisView } from './views/AnalysisView';
+import { ArticleView } from './views/ArticleView';
 import { LibraryView } from './views/LibraryView';
 import { PracticeView } from './views/PracticeView';
 import { Btn } from './components/bits';
@@ -29,6 +30,7 @@ export default function App() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {st.view === 'analysis' && <AnalysisView />}
+          {st.view === 'article' && <ArticleView />}
           {st.view === 'library' && <LibraryView />}
           {st.view === 'practice' && <PracticeView />}
         </div>

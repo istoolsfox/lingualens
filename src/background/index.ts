@@ -7,6 +7,7 @@ import { guessMode } from '../ai/router';
 import {
   PORT_NAME,
   isMsg,
+  type ArticlePayload,
   type GetStateResponse,
   type Snapshot,
   type StartResponse,
@@ -17,13 +18,17 @@ import {
   addPort,
   broadcast,
   cancelAnalysis,
+  cancelArticle,
   cancelFollowUp,
   followUp,
+  getArticleState,
   initService,
   listSessionViews,
   practiceGenerate,
   practiceGrade,
+  setArticleError,
   startAnalysis,
+  startArticleTranslate,
   startLight,
 } from './aiService';
 
@@ -36,6 +41,11 @@ async function setPending(snapshot: Snapshot, action: 'analyze' | 'translate' | 
   await chrome.storage.session.set({ [PENDING_KEY]: { snapshot, action } });
   await chrome.storage.session.remove(RESTRICTED_KEY);
   broadcast({ type: 'pending', snapshot, action });
+}
+
+async function setPendingArticle(payload: ArticlePayload): Promise<void> {
+  await chrome.storage.session.remove(RESTRICTED_KEY);
+  broadcast({ type: 'pending-article', payload });
 }
 
 async function getPending(): Promise<{ snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' } | undefined> {
@@ -163,6 +173,28 @@ async function favoriteFromSnapshot(snapshot: Snapshot): Promise<void> {
   await addEntry(entry);
 }
 
+// ---------- 快捷键命令（Chrome commands，用户可在 chrome://extensions/shortcuts 自定义） ----------
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'translate-article') return;
+  void (async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (typeof tab?.id !== 'number') return;
+    try {
+      const resp = await chrome.tabs.sendMessage(tab.id, { type: 'DO_EXTRACT_ARTICLE' });
+      if (resp?.error) {
+        setArticleError(String(resp.error));
+        await openPanel(tab.id);
+      }
+      // 成功路径：CS → ARTICLE_TRANSLATE → SW，随后由消息处理器打开面板
+    } catch {
+      // 受限页面无法注入
+      await chrome.storage.session.set({ [RESTRICTED_KEY]: true });
+      await openPanel(tab.id);
+    }
+  })();
+});
+
 // ---------- 消息路由 ----------
 
 async function handleMessage(msg: import('../shared/messages').Msg, sender: chrome.runtime.MessageSender): Promise<unknown> {
@@ -207,6 +239,22 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
       }
     }
 
+    case 'ARTICLE_TRANSLATE': {
+      try {
+        await setPendingArticle(msg.payload);
+        await startArticleTranslate(msg.payload);
+      } catch (err) {
+        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        setArticleError(code);
+      }
+      await openPanel(sender.tab?.id);
+      return { ok: true };
+    }
+
+    case 'ARTICLE_CANCEL':
+      cancelArticle();
+      return { ok: true };
+
     case 'ANALYZE_CANCEL':
       cancelAnalysis(msg.analysisId);
       return { ok: true };
@@ -231,6 +279,7 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
     case 'GET_STATE': {
       const res: GetStateResponse = {
         pending: await getPending(),
+        article: getArticleState(),
         restricted: Boolean((await chrome.storage.session.get(RESTRICTED_KEY))[RESTRICTED_KEY]),
         sessions: listSessionViews(),
       };

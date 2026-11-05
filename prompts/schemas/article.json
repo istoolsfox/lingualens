@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number", "description": "与输入段落 id 一一对应" },
+          "natural": { "type": "string", "description": "该段自然中文译文" }
+        },
+        "required": ["id", "natural"]
+      }
+    }
+  },
+  "required": ["items"]
+}

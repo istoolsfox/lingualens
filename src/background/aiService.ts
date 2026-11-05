@@ -15,7 +15,9 @@ import {
 } from '../ai/promptBuilder';
 import { extractJsonObject, parseAnalysis, parseLight } from '../ai/parser';
 import { guessMode } from '../ai/router';
-import type { PortSwMsg, SessionView, Snapshot } from '../shared/messages';
+import { splitBlocksIntoBatches } from '../ai/article';
+import { buildArticleBatchPrompt } from '../ai/promptBuilder';
+import type { ArticlePayload, ArticleStateView, PortSwMsg, SessionView, Snapshot } from '../shared/messages';
 import { channels } from '../shared/messages';
 import { SESSION_CACHE_LIMIT } from '../shared/constants';
 import type { Settings } from '../shared/settings';
@@ -456,6 +458,93 @@ export async function practiceGrade(session: PracticeSession): Promise<{ grading
     | { gradings?: { questionId: string; verdict: string; comment: string }[]; overall_comment?: string }
     | undefined;
   return { gradings: obj?.gradings ?? [], overall_comment: obj?.overall_comment };
+}
+
+// ---------- 整文翻译（快捷键触发，逐批顺序执行） ----------
+
+let articleController: AbortController | null = null;
+const articleState: ArticleStateView = {
+  payload: null,
+  running: false,
+  totalBatches: 0,
+  doneBatches: 0,
+  results: {},
+};
+
+export function getArticleState(): ArticleStateView {
+  return articleState;
+}
+
+export function setArticleError(code: string): void {
+  articleState.running = false;
+  articleState.errorCode = code;
+  broadcast({ type: 'done', channel: channels.practice, ok: false, errorCode: code });
+  broadcast({ type: 'done', channel: 'article', ok: false, errorCode: code });
+}
+
+export async function startArticleTranslate(payload: ArticlePayload): Promise<void> {
+  cancelArticle();
+  const { cfg } = await resolveEndpoint();
+
+  const batches = splitBlocksIntoBatches(payload.blocks);
+  if (batches.length === 0) throw new AiError('no_article');
+
+  articleState.payload = payload;
+  articleState.running = true;
+  articleState.totalBatches = batches.length;
+  articleState.doneBatches = 0;
+  articleState.results = {};
+  delete articleState.errorCode;
+
+  const controller = new AbortController();
+  articleController = controller;
+
+  void (async () => {
+    try {
+      for (const batch of batches) {
+        const prompt = buildArticleBatchPrompt(payload.title, batch.blocks);
+        const acc = await chatCompletionWithRetry(cfg, {
+          messages: [
+            { role: 'system', content: prompt.system },
+            { role: 'user', content: prompt.user },
+          ],
+          stream: false,
+          jsonObject: true,
+          signal: controller.signal,
+        });
+        const obj = extractJsonObject(acc) as { items?: { id?: unknown; natural?: unknown }[] } | undefined;
+        const items = (Array.isArray(obj?.items) ? obj.items : [])
+          .filter((it): it is { id: number; natural: string } => typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0);
+        if (items.length === 0) throw new AiError('parse', '某一批翻译返回无法解析，整体中止');
+        for (const it of items) {
+          articleState.results[it.id] = it.natural;
+        }
+        articleState.doneBatches++;
+        broadcast({ type: 'article_batch', index: batch.index, total: batch.total, items });
+      }
+      articleState.running = false;
+      broadcast({ type: 'done', channel: 'article', ok: true });
+    } catch (err) {
+      articleState.running = false;
+      const code = err instanceof AiError ? err.code : 'unknown';
+      articleState.errorCode = code;
+      broadcast({
+        type: 'done',
+        channel: 'article',
+        ok: false,
+        errorCode: code,
+        errorMessage: err instanceof Error ? err.message : undefined,
+      });
+    }
+  })();
+}
+
+export function cancelArticle(): void {
+  if (articleController) {
+    articleController.abort();
+    articleController = null;
+  }
+  articleState.running = false;
 }
 
 // ---------- 状态查询（Panel 恢复用） ----------
