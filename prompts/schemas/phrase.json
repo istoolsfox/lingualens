@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "detected_type": { "type": "string", "enum": ["word", "phrase", "sentence", "paragraph"] },
+    "original_text": { "type": "string" },
+    "summary": { "type": "string" },
+    "translation": {
+      "type": "object",
+      "properties": {
+        "literal": { "type": "string" },
+        "natural": { "type": "string" },
+        "intent": { "type": "string" }
+      },
+      "required": ["literal", "natural"]
+    },
+    "collocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "phrase": { "type": "string" },
+          "meaning": { "type": "string" },
+          "usage_note": { "type": "string", "description": "为什么不能逐词翻译/使用场景/语域" },
+          "examples": { "type": "array", "items": { "type": "string" } },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["phrase", "meaning"]
+      }
+    },
+    "grammar_points": {
+      "type": "array",
+      "description": "短语在句中的成分与关系等语法点",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "quote": { "type": "string" },
+          "explanation": { "type": "string" },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["title", "explanation"]
+      }
+    },
+    "vocabulary": {
+      "type": "array",
+      "description": "短语中值得单独讲的词（可选）",
+      "items": { "type": "object" }
+    },
+    "expression": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "en_side": { "type": "string" },
+          "cn_side": { "type": "string" },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["title", "en_side", "cn_side"]
+      }
+    }
+  },
+  "required": ["detected_type", "original_text", "summary", "translation", "collocations"]
+}

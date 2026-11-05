@@ -1,0 +1,87 @@
+{
+  "type": "object",
+  "properties": {
+    "detected_type": { "type": "string", "enum": ["word", "phrase", "sentence", "paragraph"] },
+    "original_text": { "type": "string" },
+    "summary": { "type": "string", "description": "段落大意；作者观点若存在则一并点明" },
+    "translation": {
+      "type": "object",
+      "properties": {
+        "literal": { "type": "string" },
+        "natural": { "type": "string", "description": "整段自然意译（主体）" },
+        "intent": { "type": "string" }
+      },
+      "required": ["literal", "natural"]
+    },
+    "chunks": {
+      "type": "array",
+      "description": "按句子/句群拆分，含与前文的逻辑关系（转折/因果/递进/举例/让步/总结）",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" },
+          "meaning": { "type": "string" },
+          "role": { "type": "string" }
+        },
+        "required": ["text", "meaning", "role"]
+      }
+    },
+    "structure": {
+      "type": "array",
+      "description": "段落内最复杂 1-2 句的结构分析",
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": { "type": "string" },
+          "text": { "type": "string" },
+          "explanation": { "type": "string" }
+        },
+        "required": ["component", "text", "explanation"]
+      }
+    },
+    "grammar_points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "quote": { "type": "string" },
+          "explanation": { "type": "string" },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["title", "explanation"]
+      }
+    },
+    "vocabulary": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "collocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "phrase": { "type": "string" },
+          "meaning": { "type": "string" },
+          "usage_note": { "type": "string" },
+          "examples": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["phrase", "meaning"]
+      }
+    },
+    "expression": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "en_side": { "type": "string" },
+          "cn_side": { "type": "string" },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["title", "en_side", "cn_side"]
+      }
+    }
+  },
+  "required": ["detected_type", "original_text", "summary", "translation", "chunks"]
+}

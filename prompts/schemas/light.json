@@ -1,0 +1,39 @@
+{
+  "translate": {
+    "type": "object",
+    "properties": {
+      "translation": {
+        "type": "object",
+        "properties": {
+          "literal": { "type": "string" },
+          "natural": { "type": "string" },
+          "intent": { "type": "string" }
+        },
+        "required": ["literal", "natural"]
+      },
+      "summary": { "type": "string", "description": "翻译关键取舍一句话" }
+    },
+    "required": ["translation", "summary"]
+  },
+  "explain": {
+    "type": "object",
+    "properties": {
+      "summary": { "type": "string", "description": "这段英文在语境中是什么意思" },
+      "expression": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "en_side": { "type": "string" },
+            "cn_side": { "type": "string" },
+            "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+          },
+          "required": ["title", "en_side", "cn_side"]
+        }
+      },
+      "word_info": { "type": "object", "description": "仅当选区是值得深挖的单词时提供" }
+    },
+    "required": ["summary"]
+  }
+}

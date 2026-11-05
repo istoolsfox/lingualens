@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "properties": {
+    "detected_type": { "type": "string", "enum": ["word", "phrase", "sentence", "paragraph"] },
+    "original_text": { "type": "string" },
+    "summary": { "type": "string", "description": "作者真正想表达什么（最终理解）" },
+    "translation": {
+      "type": "object",
+      "properties": {
+        "literal": { "type": "string", "description": "结构直译" },
+        "natural": { "type": "string", "description": "自然意译" },
+        "intent": { "type": "string", "description": "言外之意/语气（可选）" }
+      },
+      "required": ["literal", "natural"]
+    },
+    "chunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" },
+          "meaning": { "type": "string" },
+          "role": { "type": "string" }
+        },
+        "required": ["text", "meaning", "role"]
+      }
+    },
+    "structure": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": { "type": "string", "description": "主语/谓语/宾语/定语/状语/补语/表语/从句/插入语" },
+          "text": { "type": "string" },
+          "explanation": { "type": "string" }
+        },
+        "required": ["component", "text", "explanation"]
+      }
+    },
+    "grammar_points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "quote": { "type": "string" },
+          "explanation": { "type": "string" },
+          "alternative": { "type": "string" },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["title", "explanation"]
+      }
+    },
+    "vocabulary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "word": { "type": "string" },
+          "pos": { "type": "string" },
+          "context_meaning": { "type": "string" },
+          "morphology": { "type": "string" },
+          "collocations": { "type": "array", "items": { "type": "string" } },
+          "synonym_diff": { "type": "string" }
+        },
+        "required": ["word", "pos", "context_meaning"]
+      }
+    },
+    "collocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "phrase": { "type": "string" },
+          "meaning": { "type": "string" },
+          "usage_note": { "type": "string" },
+          "examples": { "type": "array", "items": { "type": "string" } },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["phrase", "meaning"]
+      }
+    },
+    "expression": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "en_side": { "type": "string" },
+          "cn_side": { "type": "string" },
+          "kind": { "type": "string", "enum": ["rule", "habit", "style"] }
+        },
+        "required": ["title", "en_side", "cn_side"]
+      }
+    }
+  },
+  "required": ["detected_type", "original_text", "summary", "translation"]
+}
