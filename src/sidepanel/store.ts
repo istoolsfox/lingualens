@@ -388,6 +388,17 @@ export const useStore = create<PanelState>()((set, get) => {
       });
       get().applyTheme();
 
+      // popup「练习复习」直达训练视图
+      chrome.storage.session
+        .get('ll_open_view')
+        .then((res) => {
+          if (res['ll_open_view'] === 'practice') {
+            set({ view: 'practice' });
+            void chrome.storage.session.remove('ll_open_view');
+          }
+        })
+        .catch(() => undefined);
+
       const state = await sendMessage<GetStateResponse>({ type: 'GET_STATE' });
       const latest = (state.sessions as SessionView[])[0] ?? null;
       if (state.pending) {

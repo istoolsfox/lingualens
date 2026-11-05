@@ -22,12 +22,22 @@ const ARTICLE_HTML = `<!doctype html><html><head><title>Fixture Article</title><
 <nav><a href="/">Home</a><a href="/about">About</a></nav>
 <article>
 <h1>Why On Steroids Matters</h1>
+<div class="meta">Published on: <span>August 28, 2026</span></div>
+<div class="tags"><a href="#p">#posts</a> <a href="#ai">#AI</a> <a href="#rant">#rant</a></div>
 <p>A computer on steroids is a common English idiom. It means an enhanced version of something. People use it when comparing products.</p>
+<ul>
+<li>A Tai Chi training program that promises to get you ripped like <s>someone on steroids</s> a superhero in 20 days.</li>
+<li>Glasses that can adapt to any prescription are not how glasses work, according to experts.</li>
+</ul>
 <p>The problem is the scammers only need to get through to a very small percentage of people to make their money back.</p>
-<p>Glasses that can adapt to any prescription are not how glasses work, according to experts.</p>
+<p>It's not just adverts. I have my email in my footer <sup><a id="fn1">[1]</a></sup> and tend to get a lot of spam. Take this email I got the other day: come say hi if you're a human <a href="#back">↩</a></p>
+<p>If you would like to receive these posts in your inbox, why not sign up to my <a href="#ml">mailing list</a>.</p>
+<div style="background:#e74c3c;color:#fff;padding:24px;border-radius:8px;">
+<p>In a world of noise and uncertainty, this dark card finds meaning hidden within the chaos, revealing light where none seemed to exist for every reader.</p>
+</div>
 <p>Whenever you watch a video on YouTube now, you will likely get an advert for a scammy product.</p>
 </article>
-<footer>© fixture</footer></body></html>`;
+<footer>Next: <a href="#n">August Round Up</a> | Previous: <a href="#p2">July Round Up</a></footer></body></html>`;
 
 const fixture = createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -122,9 +132,14 @@ await popupPage.setViewportSize({ width: 372, height: 560 });
 await shot(popupPage, '02-popup.png');
 const hasFullpageBtn = await popupPage.locator('#btn-fullpage').count();
 check('弹窗主界面渲染（全文翻译主按钮）', hasFullpageBtn === 1);
-const hasProvider = await popupPage.locator('#provider').count();
-const hasKeyInput = await popupPage.locator('#apikey').count();
-check('弹窗连接卡：厂商/密钥选择内联（v0.5）', hasProvider === 1 && hasKeyInput === 1);
+// v0.5.1 定案：连接卡移回设置页，弹窗恢复四宫格
+const hasConnCard = await popupPage.locator('.conn-card').count();
+const gridBtns = await popupPage.locator('.fn-btn').count();
+check(
+  '弹窗恢复四宫格且无连接卡',
+  hasConnCard === 0 && gridBtns === 4,
+  `连接卡 ${hasConnCard}，宫格按钮 ${gridBtns}`,
+);
 const kbdCount = await popupPage.locator('.kbd').count();
 check('快捷键显著化（蓝底胶囊×2）', kbdCount === 2, `kbd ${kbdCount}`);
 
@@ -166,6 +181,21 @@ for (let i = 0; i < 40; i++) {
   if (injected >= 6 && loading === 0) break;
 }
 check('全文翻译：真译文注入原文本（≥6 段）', injected >= 6, `实际 ${injected}`);
+// 碎片化专项（真信号）：行内元素（sup/a/s）内部不得有注入节点（新逻辑只挂块锚尾部）；
+// 译文块总数应≈块级段落数（fixture 预期 13；旧碎片逻辑会产生 20+）
+const inlineInjected = await artPage.evaluate(
+  () => document.querySelectorAll('sup [data-ll], a > [data-ll], a[data-ll], s [data-ll]').length,
+);
+check(
+  '全文翻译：行内元素不独立注入（脚注/箭头/链接并入段落）',
+  inlineInjected === 0,
+  `行内注入 ${inlineInjected}`,
+);
+const totalBlocks = await artPage.evaluate(
+  () =>
+    [...document.querySelectorAll('[data-ll]')].filter((n) => n.textContent?.includes('【假译文】')).length,
+);
+check('全文翻译：译文块数≈块级段落数（≤15，防碎片化）', totalBlocks <= 15, `译文块 ${totalBlocks}`);
 const loadingLeft = await artPage.evaluate(() => document.querySelectorAll('[data-ll-loading]').length);
 check('全文翻译：无残留转圈占位', loadingLeft === 0, `残留 ${loadingLeft}`);
 const termCount = await artPage.evaluate(() => document.querySelectorAll('[data-ll-term]').length);

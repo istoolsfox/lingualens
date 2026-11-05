@@ -4,7 +4,6 @@
 // ============================================================
 
 import './popup.css';
-import { PROVIDER_PRESETS } from '../shared/providers';
 import { DEFAULT_SETTINGS, formatHotkey, type Settings } from '../shared/settings';
 
 const I = {
@@ -14,6 +13,10 @@ const I = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
   panelRight:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>',
+  scanText:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h8"/><path d="M7 12h8"/><path d="M7 16h5"/></svg>',
+  bookOpen:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
   settings:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
   shield:
@@ -37,11 +40,10 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 const SETTINGS_KEY = 'll_settings';
 const KEY_ENC_SLOT = 'll_key_enc';
-const DEVICE_KEY_SLOT = 'll_dk';
 
 async function loadState(): Promise<{ settings: Settings; hasKey: boolean }> {
   const res = await chrome.storage.local.get(SETTINGS_KEY);
-  const s = (res[SETTINGS_KEY] ?? {}) as Settings;
+  const s = (res[SETTINGS_KEY] ?? {}) as Partial<Settings>;
   const merged: Settings = {
     ...DEFAULT_SETTINGS,
     ...s,
@@ -53,50 +55,9 @@ async function loadState(): Promise<{ settings: Settings; hasKey: boolean }> {
   return { settings: merged, hasKey };
 }
 
-async function saveSettings(s: Settings): Promise<void> {
-  await chrome.storage.local.set({ [SETTINGS_KEY]: s });
-}
-
-/** 与 background/secureStore 相同的 AES-GCM 加密（popup 内联一份，避免拉入 SW 模块） */
-async function saveKey(apiKey: string): Promise<void> {
-  if (!apiKey.trim()) return;
-  let raw: Uint8Array;
-  const dk = (await chrome.storage.local.get(DEVICE_KEY_SLOT))[DEVICE_KEY_SLOT] as string | undefined;
-  if (dk) {
-    const bin = atob(dk);
-    raw = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
-  } else {
-    raw = crypto.getRandomValues(new Uint8Array(32));
-    await chrome.storage.local.set({ [DEVICE_KEY_SLOT]: btoa(String.fromCharCode(...raw)) });
-  }
-  const key = await crypto.subtle.importKey('raw', raw as unknown as BufferSource, 'AES-GCM', false, [
-    'encrypt',
-    'decrypt',
-  ]);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    new TextEncoder().encode(apiKey.trim()),
-  );
-  const b64 = (b: ArrayBuffer) => {
-    const bytes = new Uint8Array(b);
-    let out = '';
-    for (const byte of bytes) out += String.fromCharCode(byte);
-    return btoa(out);
-  };
-  await chrome.storage.local.set({
-    [KEY_ENC_SLOT]: JSON.stringify({ iv: b64(iv.buffer as ArrayBuffer), ct: b64(ct) }),
-  });
-}
-
 async function main(): Promise<void> {
   const { settings, hasKey } = await loadState();
-  let current = settings;
   const isMac = /mac/i.test(navigator.platform || navigator.userAgent);
-  let providerId =
-    PROVIDER_PRESETS.find((p) => p.baseUrl && p.baseUrl === settings.api.baseUrl)?.id ?? 'custom';
 
   const app = el('div', 'wrap');
 
@@ -107,77 +68,6 @@ async function main(): Promise<void> {
     <div class="title">LinguaLens</div>
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">检查中…</span></div>`;
   app.appendChild(header);
-
-  // ---- 连接卡（厂商/模型/Key） ----
-  const conn = el('div', 'conn-card');
-  conn.innerHTML = `
-    <div class="conn-row"><select id="provider" class="input"></select></div>
-    <div class="conn-row">
-      <input id="model" class="input" list="model-presets" placeholder="模型名称" />
-      <datalist id="model-presets"></datalist>
-    </div>
-    <div class="conn-row">
-      <input id="apikey" type="password" class="input" placeholder="API 密钥（粘贴后自动加密保存）" autocomplete="off" />
-      <span class="key-state" id="keyState">${hasKey ? I.check : ''}</span>
-    </div>`;
-  app.appendChild(conn);
-
-  const providerSel = conn.querySelector('#provider') as HTMLSelectElement;
-  for (const p of PROVIDER_PRESETS) {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.name;
-    providerSel.appendChild(opt);
-  }
-  providerSel.value = providerId;
-  const modelInput = conn.querySelector('#model') as HTMLInputElement;
-  modelInput.value = settings.api.model;
-
-  const fillPresets = (id: string) => {
-    const list = conn.querySelector('#model-presets') as HTMLDataListElement;
-    list.innerHTML = '';
-    for (const m of PROVIDER_PRESETS.find((p) => p.id === id)?.models ?? []) {
-      const o = document.createElement('option');
-      o.value = m;
-      list.appendChild(o);
-    }
-  };
-  fillPresets(providerId);
-
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  const persist = () => {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => void saveSettings(current), 400);
-    const dot = document.getElementById('dot') as HTMLElement;
-    const st = document.getElementById('statusText') as HTMLElement;
-    const ok = Boolean(current.api.baseUrl && current.api.model);
-    dot.className = `dot ${ok ? 'ok' : 'err'}`;
-    st.textContent = ok ? '已配置' : '未配置';
-  };
-
-  providerSel.addEventListener('change', () => {
-    providerId = providerSel.value;
-    const p = PROVIDER_PRESETS.find((x) => x.id === providerId);
-    if (p && providerId !== 'custom') {
-      current = {
-        ...current,
-        api: { ...current.api, baseUrl: p.baseUrl, model: p.models[0] ?? current.api.model },
-      };
-      modelInput.value = current.api.model;
-    }
-    fillPresets(providerId);
-    persist();
-  });
-  modelInput.addEventListener('change', () => {
-    current = { ...current, api: { ...current.api, model: modelInput.value.trim() } };
-    persist();
-  });
-  const keyInput = conn.querySelector('#apikey') as HTMLInputElement;
-  keyInput.addEventListener('change', () => {
-    void saveKey(keyInput.value);
-    keyInput.value = '';
-    (conn.querySelector('#keyState') as HTMLElement).innerHTML = I.check;
-  });
 
   // ---- 语言卡 ----
   const lang = el('div', 'lang-card');
@@ -193,7 +83,7 @@ async function main(): Promise<void> {
   mainBtn.id = 'btn-fullpage';
   app.appendChild(mainBtn);
 
-  // ---- 次级：文章翻译 + 打开侧边栏 ----
+  // ---- 四宫格（恢复 v0.4 布局） ----
   const grid = el('div', 'grid');
   const mkBtn = (id: string, icon: string, label: string, hint: string) => {
     const b = el('button', 'fn-btn');
@@ -202,7 +92,9 @@ async function main(): Promise<void> {
     return b;
   };
   grid.appendChild(mkBtn('btn-article', I.fileText, '文章翻译', '智能提取正文·注入对照'));
+  grid.appendChild(mkBtn('btn-select', I.scanText, '划词精读', '选中内容深度讲解'));
   grid.appendChild(mkBtn('btn-panel', I.panelRight, '打开侧边栏', '精读工作台'));
+  grid.appendChild(mkBtn('btn-practice', I.bookOpen, '练习复习', '基于你的收藏'));
   app.appendChild(grid);
 
   // ---- 快捷键提示（显著化：蓝底胶囊） ----
@@ -270,8 +162,45 @@ async function main(): Promise<void> {
       .catch(() => undefined);
     window.close();
   });
+  (document.getElementById('btn-select') as HTMLButtonElement).addEventListener('click', async () => {
+    if (!guard() || typeof tabId !== 'number') return;
+    const results = await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        func: () => {
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+          return sel.toString().replace(/\s+/g, ' ').trim().slice(0, 2000);
+        },
+      })
+      .catch(() => null);
+    const text = (results?.[0]?.result as string | undefined) ?? '';
+    if (!text) {
+      showTip('先在页面上选中一段英文，再点这里');
+      return;
+    }
+    await chrome.runtime.sendMessage({
+      type: 'SELECTION_SNAPSHOT',
+      snapshot: {
+        text,
+        contextBefore: '',
+        contextAfter: '',
+        url: tab?.url ?? '',
+        title: tab?.title ?? '',
+        source: 'icon-activate',
+      },
+    });
+    await chrome.sidePanel.open({ tabId });
+    window.close();
+  });
   (document.getElementById('btn-panel') as HTMLButtonElement).addEventListener('click', async () => {
     if (typeof tabId !== 'number') return;
+    await chrome.sidePanel.open({ tabId });
+    window.close();
+  });
+  (document.getElementById('btn-practice') as HTMLButtonElement).addEventListener('click', async () => {
+    if (typeof tabId !== 'number') return;
+    await chrome.storage.session.set({ ll_open_view: 'practice' });
     await chrome.sidePanel.open({ tabId });
     window.close();
   });

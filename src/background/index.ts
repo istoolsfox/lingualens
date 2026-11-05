@@ -282,10 +282,14 @@ async function handleMessage(msg: Msg, sender: chrome.runtime.MessageSender): Pr
     }
 
     case 'GET_STATE': {
+      // restricted 按"当前活动 tab 是否 http/https"实时判定，不再依赖 session 标志
+      //（旧实现：一次在受限页点过图标后标志残留，正常网页开侧栏也误报"浏览器内部页面"）
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const restricted = !activeTab?.url || !/^https?:/i.test(activeTab.url);
       const res: GetStateResponse = {
         pending: await getPending(),
         article: getArticleState(),
-        restricted: Boolean((await chrome.storage.session.get(RESTRICTED_KEY))[RESTRICTED_KEY]),
+        restricted,
         sessions: listSessionViews(),
       };
       return res;

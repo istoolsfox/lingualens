@@ -1,6 +1,6 @@
 {
   "name": "lingualens",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "private": true,
   "description": "LinguaLens —— AI 英语深度阅读助手：选中即精读的 Chrome 扩展",
   "type": "module",

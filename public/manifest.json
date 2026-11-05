@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LinguaLens — AI 英语深度阅读助手",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "description": "选中即精读：不止翻译，讲透英语为什么这样表达。单词构词、句中语法作用、意群拆解、双轨翻译、表达习惯与中英差异。",
   "minimum_chrome_version": "114",
   "icons": {

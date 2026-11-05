@@ -58,6 +58,27 @@ function isVisible(el: Element): boolean {
   return he.offsetParent !== null || he.getClientRects().length > 0;
 }
 
+/**
+ * 块级锚：行内元素（a/sup/s/span 等）向上归并到最近块级容器。
+ * v0.5.1 核心修复：unit 必须按块级锚分组——按直接父元素分组会让脚注 [1]、
+ * 返回箭头 ↩、mailing list 链接、tags 全都碎成一行行独立翻译。
+ * v0.5.2：nav/header/footer 等结构性容器也作锚（否则其中链接各自成块）；
+ * 兜底沿父级向上找首个非行内元素，绝不把行内元素自己当锚。
+ */
+const BLOCK_SELECTOR =
+  'p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, td, th, div, section, article, nav, header, footer, aside, ul, ol, table, main';
+
+function blockAnchor(el: Element): Element {
+  const hit = el.closest(BLOCK_SELECTOR);
+  if (hit) return hit;
+  let cur: Element | null = el.parentElement;
+  while (cur && cur !== document.body) {
+    if (cur.closest(BLOCK_SELECTOR)) return cur.closest(BLOCK_SELECTOR) as Element;
+    cur = cur.parentElement;
+  }
+  return document.body;
+}
+
 function collectUnits(scope: Element = document.body): { units: Unit[]; truncated: boolean } {
   const groups = new Map<Element, string[]>();
   let total = 0;
@@ -69,9 +90,10 @@ function collectUnits(scope: Element = document.body): { units: Unit[]; truncate
       if (!parent) return NodeFilter.FILTER_REJECT;
       if (SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
       if (parent.closest(`[${TAG}]`)) return NodeFilter.FILTER_REJECT;
-      if (!isVisible(parent)) return NodeFilter.FILTER_REJECT;
+      const anchor = blockAnchor(parent);
+      if (!isVisible(anchor)) return NodeFilter.FILTER_REJECT;
       const text = node.nodeValue ?? '';
-      if (text.trim().length < 2) return NodeFilter.FILTER_REJECT;
+      if (text.trim().length < 1) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
@@ -80,34 +102,29 @@ function collectUnits(scope: Element = document.body): { units: Unit[]; truncate
   while ((current = walker.nextNode())) {
     const parent = (current as Text).parentElement;
     if (!parent) continue;
+    const anchor = blockAnchor(parent);
     const t = (current.nodeValue ?? '').replace(/\s+/g, ' ').trim();
+    if (!t) continue;
     if (total + t.length > FULLPAGE_MAX_CHARS) {
       truncated = true;
       break;
     }
-    const arr = groups.get(parent) ?? [];
+    const arr = groups.get(anchor) ?? [];
     arr.push(t);
-    groups.set(parent, arr);
+    groups.set(anchor, arr);
     total += t.length;
   }
 
   const out: Unit[] = [];
   let id = 0;
-  for (const [parent, texts] of groups) {
+  for (const [anchor, texts] of groups) {
     const text = texts.join(' ').replace(/\s+/g, ' ').trim();
-    if (text.length < 2) continue;
-    out.push({ id: id++, text, container: parent });
+    // 过滤纯标记/符号块：脚注角标、返回箭头、孤立标点（去掉字母数字汉字后不足 2 字符）
+    const meaningful = text.replace(/[\s\p{P}\p{S}]/gu, '');
+    if (meaningful.length < 2) continue;
+    out.push({ id: id++, text, container: anchor });
   }
   return { units: out, truncated };
-}
-
-/** 注入锚点：行内元素的译文挂到最近的块级祖先，避免打断行内布局 */
-function blockAnchor(el: Element): Element {
-  return (
-    el.closest(
-      'p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, td, th, div, section, article',
-    ) ?? el
-  );
 }
 
 // ---------- 注入 ----------
@@ -152,7 +169,7 @@ function makeTranslationNode(natural: string): HTMLDivElement {
   const div = document.createElement('div');
   div.setAttribute(TAG, '');
   div.style.cssText =
-    'margin:4px 0 2px;padding-left:8px;border-left:2px solid rgba(37,99,235,.45);font-size:.92em;line-height:1.65;color:#475569;white-space:pre-wrap;';
+    'margin:4px 0 2px;padding-left:8px;border-left:2px solid rgba(37,99,235,.55);font-size:.92em;line-height:1.65;color:inherit;opacity:.72;white-space:pre-wrap;';
   div.textContent = natural;
   return div;
 }
