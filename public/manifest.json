@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "description": "选中即精读：不止翻译，讲透英语为什么这样表达。单词构词、句中语法作用、意群拆解、双轨翻译、表达习惯与中英差异。",
   "minimum_chrome_version": "114",
-  "default_locale": "zh_CN",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
