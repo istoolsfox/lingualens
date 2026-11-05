@@ -42,14 +42,6 @@ export default function App() {
 
 function Header() {
   const st = useStore();
-  const cycleTheme = () => {
-    const order = ['auto', 'light', 'dark'] as const;
-    const cur = order.indexOf(st.settings.ui.theme);
-    const next = order[(cur + 1) % order.length];
-    const s = { ...st.settings, ui: { ...st.settings.ui, theme: next } };
-    void chrome.storage.local.set({ ll_settings: s });
-  };
-  const themeIcon = { auto: '◐', light: '☀', dark: '☾' }[st.settings.ui.theme];
 
   const tabBtn = (key: 'analysis' | 'library' | 'practice', label: string) => (
     <button
@@ -72,9 +64,6 @@ function Header() {
         {tabBtn('library', '知识库')}
         {tabBtn('practice', '训练')}
       </div>
-      <Btn onClick={cycleTheme} title={`主题：${st.settings.ui.theme}`}>
-        {themeIcon}
-      </Btn>
       <Btn
         onClick={() => {
           void chrome.runtime.openOptionsPage();

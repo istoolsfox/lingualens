@@ -1,9 +1,10 @@
 // ============================================================
-// ai/article.ts —— 整文翻译的纯函数层（批处理切分，可单测）
+// ai/article.ts —— 整文翻译的纯函数层（批处理切分/译文复用，可单测）
 // ============================================================
 
 import { ARTICLE_BATCH_CHARS } from '../shared/constants';
 import type { ArticlePayload } from '../shared/messages';
+import { textKey } from './hash';
 
 export interface ArticleBatch {
   index: number;
@@ -45,3 +46,22 @@ export function splitBlocksIntoBatches(
 
   return batches.map((b, i) => ({ ...b, index: i, total: batches.length }));
 }
+
+/**
+ * 段落级译文复用：先查记忆（memo），命中的直接回填，未命中的再切批翻译。
+ * 这是"优先找我们翻译过的，不重复浪费 token"的核心纯函数。
+ */
+export function planWithMemo(
+  blocks: { id: number; text: string }[],
+  memo: Map<string, string>,
+): { reused: { id: number; natural: string }[]; pending: { id: number; text: string }[] } {
+  const reused: { id: number; natural: string }[] = [];
+  const pending: { id: number; text: string }[] = [];
+  for (const b of blocks) {
+    const hit = memo.get(textKey(b.text));
+    if (hit) reused.push({ id: b.id, natural: hit });
+    else pending.push(b);
+  }
+  return { reused, pending };
+}
+

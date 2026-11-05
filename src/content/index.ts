@@ -7,6 +7,7 @@
 import { Readability } from '@mozilla/readability';
 import type { ArticleExtractRequest, ArticlePayload, Snapshot } from '../shared/messages';
 import { ARTICLE_MAX_CHARS, MAX_SELECTION_LENGTH } from '../shared/constants';
+import { handleFullPageMessage, initFullPage, toggleFullPage } from './fullpage';
 
 const BAR_ID = 'lingualens-bar-host';
 const CONTEXT_LIMIT = 300;
@@ -130,6 +131,7 @@ function ensureHost(): ShadowRoot {
     '<button class="btn" data-act="translate">翻译</button>',
     '<button class="btn" data-act="explain">解释</button>',
     '<span class="sep"></span>',
+    '<button class="btn" data-act="fullpage" title="全文翻译：页面所有可见文字注入对照，重点表达虚线标注">全文</button>',
     '<button class="btn" data-act="favorite">收藏</button>',
     '<button class="btn close" data-act="close" title="关闭">✕</button>',
     '<span class="warn" hidden style="color:#fbbf24;font-size:11px;padding:0 6px;">长文已截断</span>',
@@ -150,6 +152,11 @@ function onBarClick(e: Event): void {
     return;
   }
   const snapshot = captured.snapshot;
+  if (act === 'fullpage') {
+    hideBar();
+    void toggleFullPage();
+    return;
+  }
   void chrome.runtime.sendMessage({
     type: 'TOOLBAR_ACTION',
     snapshot,
@@ -275,6 +282,8 @@ function extractArticle(): ArticlePayload | { error: string } {
 }
 
 chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
+  // 全文注入翻译的进度/结果推送（SW → CS）
+  if (handleFullPageMessage(msg)) return false;
   const m = msg as Partial<ArticleExtractRequest>;
   if (m?.type !== 'DO_EXTRACT_ARTICLE') return false;
   const result = extractArticle();
@@ -286,3 +295,6 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
   }
   return false; // 同步响应
 });
+
+// 应用内自定义快捷键 + 讲解点点击弹卡（全文翻译注入）
+initFullPage();

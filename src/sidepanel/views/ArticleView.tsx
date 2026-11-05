@@ -66,6 +66,14 @@ export function ArticleView() {
             </span>
             {art.phase === 'running' && <Spinner label="" />}
           </div>
+          {art.phase === 'done' && art.cacheInfo?.cached && (
+            <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">这个页面之前翻过且内容没变，已直接使用缓存（0 token）</p>
+          )}
+          {art.phase === 'done' && art.cacheInfo && !art.cacheInfo.cached && art.cacheInfo.reused > 0 && (
+            <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+              页面内容有变化：复用了 {art.cacheInfo.reused} 段旧译文，新译 {art.cacheInfo.fresh} 段
+            </p>
+          )}
         </div>
       </div>
 

@@ -14,6 +14,7 @@ import explainMd from '../../prompts/explain.md?raw';
 import practiceGenerateMd from '../../prompts/practice_generate.md?raw';
 import practiceGradeMd from '../../prompts/practice_grade.md?raw';
 import articleTranslateMd from '../../prompts/article_translate.md?raw';
+import fullpageTranslateMd from '../../prompts/fullpage_translate.md?raw';
 
 import wordSchema from '../../prompts/schemas/word.json';
 import phraseSchema from '../../prompts/schemas/phrase.json';
@@ -22,6 +23,7 @@ import paragraphSchema from '../../prompts/schemas/paragraph.json';
 import lightSchema from '../../prompts/schemas/light.json';
 import practiceSchema from '../../prompts/schemas/practice.json';
 import articleSchema from '../../prompts/schemas/article.json';
+import fullpageSchema from '../../prompts/schemas/fullpage.json';
 
 import { DEPTH_LABELS, LEVEL_LABELS, LONG_TEXT_THRESHOLD } from '../shared/constants';
 import type { Snapshot } from '../shared/messages';
@@ -214,4 +216,17 @@ export function buildArticleBatchPrompt(
   });
   const schema = articleSchema as object;
   return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_article' };
+}
+
+/** 全文注入翻译批次 prompt（含讲解点挖掘） */
+export function buildFullPageBatchPrompt(
+  pageTitle: string,
+  units: { id: number; text: string }[],
+): BuiltPrompt {
+  const user = fill(fullpageTranslateMd, {
+    PAGE_TITLE: pageTitle || '(未知页面)',
+    UNITS_JSON: JSON.stringify(units),
+  });
+  const schema = fullpageSchema as object;
+  return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_fullpage' };
 }

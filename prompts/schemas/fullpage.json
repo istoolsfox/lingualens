@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number", "description": "与输入单元 id 一一对应" },
+          "natural": { "type": "string" }
+        },
+        "required": ["id", "natural"]
+      }
+    },
+    "highlights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number", "description": "所属单元 id" },
+          "expr": { "type": "string", "description": "原文连续子串" },
+          "why": { "type": "string", "description": "含义 + 为什么这样写" }
+        },
+        "required": ["id", "expr", "why"]
+      }
+    }
+  },
+  "required": ["items"]
+}

@@ -56,6 +56,54 @@ export interface ArticleExtractRequest {
   type: 'DO_EXTRACT_ARTICLE';
 }
 
+/** 全文注入翻译的文本单元（来自 content script 收集） */
+export interface FullPagePayload {
+  url: string;
+  title: string;
+  units: { id: number; text: string }[];
+  truncated?: boolean;
+}
+
+/** 讲解点：值得解释的表达（注入虚线下划线，点击弹卡） */
+export interface FullPageHighlight {
+  id: number;
+  /** 原文片段（必须是单元文本的子串） */
+  expr: string;
+  /** 专门解释：什么意思 + 为什么这样写 */
+  why: string;
+}
+
+/** SW → CS：全文翻译逐批结果 */
+export interface FullPageBatchMsg {
+  type: 'FULLPAGE_BATCH';
+  index: number;
+  total: number;
+  items: { id: number; natural: string }[];
+  highlights: FullPageHighlight[];
+}
+
+export interface FullPageDoneMsg {
+  type: 'FULLPAGE_DONE';
+  translated: number;
+  highlights: number;
+  reused: number;
+}
+
+export interface FullPageErrorMsg {
+  type: 'FULLPAGE_ERROR';
+  errorCode: string;
+  errorMessage?: string;
+}
+
+export interface FullPageBatchItem {
+  natural: string;
+}
+
+export interface FullPageHighlightItem {
+  expr: string;
+  why: string;
+}
+
 export type Msg =
   | { type: 'SELECTION_SNAPSHOT'; snapshot: Snapshot }
   | { type: 'OPEN_PANEL' }
@@ -63,6 +111,8 @@ export type Msg =
   | { type: 'LIGHT_ACTION'; snapshot: Snapshot; action: LightAction }
   | { type: 'ARTICLE_TRANSLATE'; payload: ArticlePayload }
   | { type: 'ARTICLE_CANCEL' }
+  | { type: 'FULLPAGE_TRANSLATE'; payload: FullPagePayload }
+  | { type: 'FULLPAGE_CANCEL' }
   | { type: 'ANALYZE_CANCEL'; analysisId: string }
   | { type: 'FOLLOWUP'; analysisId: string; question: string; ctx?: { snapshot: Snapshot; analysis: AnalysisResult | LightResult } }
   | { type: 'FOLLOWUP_CANCEL'; analysisId: string }

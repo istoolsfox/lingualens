@@ -15,9 +15,18 @@ import {
 } from '../ai/promptBuilder';
 import { extractJsonObject, parseAnalysis, parseLight } from '../ai/parser';
 import { guessMode } from '../ai/router';
-import { splitBlocksIntoBatches } from '../ai/article';
-import { buildArticleBatchPrompt } from '../ai/promptBuilder';
-import type { ArticlePayload, ArticleStateView, PortSwMsg, SessionView, Snapshot } from '../shared/messages';
+import { planWithMemo, splitBlocksIntoBatches } from '../ai/article';
+import { buildArticleBatchPrompt, buildFullPageBatchPrompt } from '../ai/promptBuilder';
+import { pageFingerprint } from '../ai/hash';
+import type {
+  ArticlePayload,
+  ArticleStateView,
+  FullPageHighlight,
+  FullPagePayload,
+  PortSwMsg,
+  SessionView,
+  Snapshot,
+} from '../shared/messages';
 import { channels } from '../shared/messages';
 import { SESSION_CACHE_LIMIT } from '../shared/constants';
 import type { Settings } from '../shared/settings';
@@ -34,6 +43,13 @@ import { listEntriesRaw } from '../storage/favorites';
 import { getSettings } from '../storage/settings';
 import { loadApiKey } from './secureStore';
 import { chromeStorageLike } from './storageLike';
+import {
+  articleCacheGet,
+  articleCachePut,
+  buildArticleCacheRow,
+  memoLookup,
+  memoSave,
+} from '../storage/favorites';
 
 type SessionKind = 'analysis' | 'light';
 
@@ -485,15 +501,56 @@ export function setArticleError(code: string): void {
 export async function startArticleTranslate(payload: ArticlePayload): Promise<void> {
   cancelArticle();
   const { cfg } = await resolveEndpoint();
+  const fingerprint = pageFingerprint(payload.blocks.map((b) => b.text));
 
-  const batches = splitBlocksIntoBatches(payload.blocks);
-  if (batches.length === 0) throw new AiError('no_article');
+  // ① URL 全量命中且内容未变 → 直接用缓存，零请求
+  const cached = await articleCacheGet(payload.url);
+  if (cached && cached.fingerprint === fingerprint) {
+    articleState.payload = {
+      title: cached.title,
+      url: cached.url,
+      blocks: cached.blocks,
+      truncated: payload.truncated,
+    };
+    articleState.results = { ...cached.translations };
+    articleState.running = false;
+    articleState.doneBatches = 1;
+    articleState.totalBatches = 1;
+    delete articleState.errorCode;
+    broadcast({
+      type: 'done',
+      channel: 'article',
+      ok: true,
+      payload: { cached: true, reused: cached.blocks.length, fresh: 0 },
+    });
+    return;
+  }
+
+  // ② 译文记忆复用：翻过的段落不再花钱
+  const memo = await memoLookup(payload.blocks.map((b) => b.text));
+  const { reused, pending } = planWithMemo(payload.blocks, memo);
+  const reusedMap: Record<number, string> = {};
+  for (const r of reused) reusedMap[r.id] = r.natural;
+
+  const batches = splitBlocksIntoBatches(pending);
+  if (pending.length === 0) {
+    // 全部段落都有记忆：灌入即完成
+    articleState.payload = payload;
+    articleState.results = reusedMap;
+    articleState.running = false;
+    articleState.doneBatches = 1;
+    articleState.totalBatches = 1;
+    delete articleState.errorCode;
+    await articleCachePut(buildArticleCacheRow(payload, fingerprint, reusedMap));
+    broadcast({ type: 'done', channel: 'article', ok: true, payload: { cached: false, reused: reused.length, fresh: 0 } });
+    return;
+  }
 
   articleState.payload = payload;
+  articleState.results = { ...reusedMap };
   articleState.running = true;
   articleState.totalBatches = batches.length;
   articleState.doneBatches = 0;
-  articleState.results = {};
   delete articleState.errorCode;
 
   const controller = new AbortController();
@@ -521,9 +578,16 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
         }
         articleState.doneBatches++;
         broadcast({ type: 'article_batch', index: batch.index, total: batch.total, items });
+        await memoSave(items.map((it) => ({ text: batch.blocks.find((b) => b.id === it.id)?.text ?? '', natural: it.natural })));
       }
       articleState.running = false;
-      broadcast({ type: 'done', channel: 'article', ok: true });
+      await articleCachePut(buildArticleCacheRow(payload, fingerprint, articleState.results));
+      broadcast({
+        type: 'done',
+        channel: 'article',
+        ok: true,
+        payload: { cached: false, reused: reused.length, fresh: pending.length },
+      });
     } catch (err) {
       articleState.running = false;
       const code = err instanceof AiError ? err.code : 'unknown';
@@ -545,6 +609,97 @@ export function cancelArticle(): void {
     articleController = null;
   }
   articleState.running = false;
+}
+
+// ---------- 全文注入翻译（页面内所有可见文字 + 讲解点） ----------
+
+let fullPageController: AbortController | null = null;
+
+export async function startFullPageTranslate(
+  payload: FullPagePayload,
+  pushToTab: (tabId: number, msg: unknown) => Promise<void>,
+  tabId: number | undefined,
+): Promise<void> {
+  cancelFullPageTranslate();
+  const { cfg } = await resolveEndpoint();
+  if (payload.units.length === 0) throw new AiError('fullpage_empty');
+
+  // 译文记忆复用
+  const memo = await memoLookup(payload.units.map((u) => u.text));
+  const { reused, pending } = planWithMemo(payload.units, memo);
+  const push = async (msg: unknown) => {
+    if (typeof tabId === 'number') await pushToTab(tabId, msg).catch(() => undefined);
+  };
+
+  // 记忆命中的部分先推给页面（秒出）
+  if (reused.length > 0) {
+    await push({
+      type: 'FULLPAGE_BATCH',
+      index: 0,
+      total: 0,
+      items: reused,
+      highlights: [],
+    });
+  }
+
+  const batches = splitBlocksIntoBatches(pending);
+  if (pending.length === 0) {
+    await push({ type: 'FULLPAGE_DONE', translated: reused.length, highlights: 0, reused: reused.length });
+    return;
+  }
+
+  const controller = new AbortController();
+  fullPageController = controller;
+  let highlightCount = 0;
+
+  void (async () => {
+    try {
+      for (const batch of batches) {
+        const prompt = buildFullPageBatchPrompt(payload.title, batch.blocks);
+        const acc = await chatCompletionWithRetry(cfg, {
+          messages: [
+            { role: 'system', content: prompt.system },
+            { role: 'user', content: prompt.user },
+          ],
+          stream: false,
+          jsonObject: true,
+          signal: controller.signal,
+        });
+        const obj = extractJsonObject(acc) as
+          | { items?: { id?: unknown; natural?: unknown }[]; highlights?: { id?: unknown; expr?: unknown; why?: unknown }[] }
+          | undefined;
+        const items = (Array.isArray(obj?.items) ? obj.items : [])
+          .filter((it): it is { id: number; natural: string } => typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0);
+        if (items.length === 0) throw new AiError('parse', '某一批全文翻译返回无法解析，整体中止');
+
+        // 讲解点：expr 必须是对应单元文本的子串，做防御校验
+        const textById = new Map(batch.blocks.map((b) => [b.id, b.text]));
+        const highlights = (Array.isArray(obj?.highlights) ? obj.highlights : [])
+          .filter((h): h is FullPageHighlight => {
+            if (typeof h?.id !== 'number' || typeof h?.expr !== 'string' || typeof h?.why !== 'string') return false;
+            if (h.expr.length < 2 || h.expr.length > 60 || h.why.length < 2) return false;
+            const unitText = textById.get(h.id);
+            return !!unitText && unitText.includes(h.expr);
+          })
+          .slice(0, 4);
+        highlightCount += highlights.length;
+
+        await push({ type: 'FULLPAGE_BATCH', index: batch.index + 1, total: batches.length, items, highlights });
+        await memoSave(items.map((it) => ({ text: batch.blocks.find((b) => b.id === it.id)?.text ?? '', natural: it.natural })));
+      }
+      await push({ type: 'FULLPAGE_DONE', translated: reused.length + pending.length, highlights: highlightCount, reused: reused.length });
+    } catch (err) {
+      const code = err instanceof AiError ? err.code : 'unknown';
+      await push({ type: 'FULLPAGE_ERROR', errorCode: code, errorMessage: err instanceof Error ? err.message : undefined });
+    }
+  })();
+}
+
+export function cancelFullPageTranslate(): void {
+  if (fullPageController) {
+    fullPageController.abort();
+    fullPageController = null;
+  }
 }
 
 // ---------- 状态查询（Panel 恢复用） ----------

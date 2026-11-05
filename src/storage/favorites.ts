@@ -5,17 +5,43 @@
 
 import { openDB, type IDBPDatabase } from 'idb';
 import type { BackupFile, Entry, PracticeSession, TagRow } from '../shared/types';
+import type { ArticlePayload } from '../shared/messages';
+import { textKey } from '../ai/hash';
+
+/** 译文记忆：翻过的段落文本 → 译文（跨页面/跨模式复用，省 token） */
+export interface MemoRow {
+  hash: string;
+  text: string;
+  natural: string;
+  updatedAt: number;
+}
+
+/** 整文翻译的 URL 级缓存（全量 URL 匹配，内容变化用指纹检测） */
+export interface ArticleCacheRow {
+  url: string;
+  fingerprint: string;
+  title: string;
+  blocks: { id: number; text: string }[];
+  translations: Record<number, string>;
+  updatedAt: number;
+}
 
 const DB_NAME = 'lingualens';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_ENTRIES = 'entries';
 const STORE_TAGS = 'tags';
 const STORE_PRACTICE = 'practice';
+const STORE_MEMO = 'memo';
+const STORE_ARTICLES = 'articles';
+const STORE_HANDLES = 'fsHandles';
 
 interface LLDatabases {
   [STORE_ENTRIES]: Entry;
   [STORE_TAGS]: TagRow;
   [STORE_PRACTICE]: PracticeSession;
+  [STORE_MEMO]: MemoRow;
+  [STORE_ARTICLES]: ArticleCacheRow;
+  [STORE_HANDLES]: unknown;
 }
 
 let dbPromise: Promise<IDBPDatabase<LLDatabases>> | null = null;
@@ -23,7 +49,7 @@ let dbPromise: Promise<IDBPDatabase<LLDatabases>> | null = null;
 function db(): Promise<IDBPDatabase<LLDatabases>> {
   if (!dbPromise) {
     dbPromise = openDB<LLDatabases>(DB_NAME, DB_VERSION, {
-      upgrade(d) {
+      upgrade(d, _oldVersion, _oldVn, tx) {
         if (!d.objectStoreNames.contains(STORE_ENTRIES)) {
           d.createObjectStore(STORE_ENTRIES, { keyPath: 'id' });
         }
@@ -33,6 +59,16 @@ function db(): Promise<IDBPDatabase<LLDatabases>> {
         if (!d.objectStoreNames.contains(STORE_PRACTICE)) {
           d.createObjectStore(STORE_PRACTICE, { keyPath: 'id' });
         }
+        if (!d.objectStoreNames.contains(STORE_MEMO)) {
+          d.createObjectStore(STORE_MEMO, { keyPath: 'hash' });
+        }
+        if (!d.objectStoreNames.contains(STORE_ARTICLES)) {
+          d.createObjectStore(STORE_ARTICLES, { keyPath: 'url' });
+        }
+        if (!d.objectStoreNames.contains(STORE_HANDLES)) {
+          d.createObjectStore(STORE_HANDLES, { keyPath: 'name' });
+        }
+        void tx;
       },
     });
   }
@@ -206,7 +242,7 @@ function normalizeEntry(e: Entry): Entry {
   };
 }
 
-/** 清空本地知识库（不含 chrome.storage 设置与密钥） */
+/** 清空本地知识库（不含 chrome.storage 设置与密钥；保留译文记忆与缓存） */
 export async function clearLibrary(): Promise<void> {
   const d = await db();
   const tx = d.transaction([STORE_ENTRIES, STORE_TAGS, STORE_PRACTICE], 'readwrite');
@@ -214,4 +250,80 @@ export async function clearLibrary(): Promise<void> {
   await tx.objectStore(STORE_TAGS).clear();
   await tx.objectStore(STORE_PRACTICE).clear();
   await tx.done;
+}
+
+// ---------- 译文记忆（memo） ----------
+
+/** 批量查询段落记忆：返回 textKey → 译文 */
+export async function memoLookup(texts: string[]): Promise<Map<string, string>> {
+  const d = await db();
+  const keys = texts.map((t) => textKey(t));
+  const out = new Map<string, string>();
+  const tx = d.transaction(STORE_MEMO, 'readonly');
+  for (const [i, key] of keys.entries()) {
+    const row = await tx.store.get(key);
+    const text = texts[i];
+    if (row && text) out.set(key, row.natural);
+  }
+  await tx.done;
+  return out;
+}
+
+export async function memoSave(items: { text: string; natural: string }[]): Promise<void> {
+  const d = await db();
+  const tx = d.transaction(STORE_MEMO, 'readwrite');
+  const now = Date.now();
+  for (const it of items) {
+    await tx.store.put({ hash: textKey(it.text), text: it.text, natural: it.natural, updatedAt: now } satisfies MemoRow);
+  }
+  await tx.done;
+}
+
+// ---------- 整文翻译 URL 缓存 ----------
+
+export async function articleCacheGet(url: string): Promise<ArticleCacheRow | undefined> {
+  const d = await db();
+  return d.get(STORE_ARTICLES, url);
+}
+
+export async function articleCachePut(row: ArticleCacheRow): Promise<void> {
+  const d = await db();
+  await d.put(STORE_ARTICLES, row);
+  // 简单 LRU：超过 100 条删最旧
+  const all = await d.getAll(STORE_ARTICLES);
+  if (all.length > 100) {
+    const sorted = all.sort((a, b) => a.updatedAt - b.updatedAt);
+    for (const old of sorted.slice(0, all.length - 100)) {
+      await d.delete(STORE_ARTICLES, old.url);
+    }
+  }
+}
+
+/** 由提取结果构造可缓存的行 */
+export function buildArticleCacheRow(payload: ArticlePayload, fingerprint: string, translations: Record<number, string>): ArticleCacheRow {
+  return {
+    url: payload.url,
+    fingerprint,
+    title: payload.title,
+    blocks: payload.blocks,
+    translations,
+    updatedAt: Date.now(),
+  };
+}
+
+// ---------- 备份目录句柄（File System Access，自定义存储位置） ----------
+
+export async function saveDirHandle(name: string, handle: unknown): Promise<void> {
+  const d = await db();
+  await d.put(STORE_HANDLES, { name, handle });
+}
+
+export async function getDirHandle(name: string): Promise<{ name: string; handle: unknown } | undefined> {
+  const d = await db();
+  return d.get(STORE_HANDLES, name);
+}
+
+export async function clearDirHandle(name: string): Promise<void> {
+  const d = await db();
+  await d.delete(STORE_HANDLES, name);
 }

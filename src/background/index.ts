@@ -20,6 +20,7 @@ import {
   cancelAnalysis,
   cancelArticle,
   cancelFollowUp,
+  cancelFullPageTranslate,
   followUp,
   getArticleState,
   initService,
@@ -29,6 +30,7 @@ import {
   setArticleError,
   startAnalysis,
   startArticleTranslate,
+  startFullPageTranslate,
   startLight,
 } from './aiService';
 
@@ -253,6 +255,25 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
 
     case 'ARTICLE_CANCEL':
       cancelArticle();
+      return { ok: true };
+
+    case 'FULLPAGE_TRANSLATE': {
+      // SW → CS 推送函数（逐批结果回到注入页面）
+      const tabId = sender.tab?.id;
+      const pushToTab = (id: number, msg: unknown) => chrome.tabs.sendMessage(id, msg);
+      try {
+        await startFullPageTranslate(msg.payload, pushToTab, tabId);
+      } catch (err) {
+        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        if (typeof tabId === 'number') {
+          await pushToTab(tabId, { type: 'FULLPAGE_ERROR', errorCode: code, errorMessage: err instanceof Error ? err.message : undefined }).catch(() => undefined);
+        }
+      }
+      return { ok: true };
+    }
+
+    case 'FULLPAGE_CANCEL':
+      cancelFullPageTranslate();
       return { ok: true };
 
     case 'ANALYZE_CANCEL':

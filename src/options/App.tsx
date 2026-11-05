@@ -7,12 +7,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { chatCompletion } from '../ai/client';
 import { AiError } from '../ai/errors';
 import { DEFAULT_CONTEXT_LENGTH, LEVEL_LABELS, DEPTH_LABELS } from '../shared/constants';
-import { DEFAULT_SETTINGS, type Settings } from '../shared/settings';
+import { DEFAULT_SETTINGS, formatHotkey, type HotkeyCombo, type Settings } from '../shared/settings';
 import { PROVIDER_PRESETS, matchPresetByBaseUrl } from '../shared/providers';
 import { getSettings, saveSettings } from '../storage/settings';
 import { clearApiKey, hasApiKey, loadApiKey, saveApiKey } from '../background/secureStore';
 import { chromeStorageLike } from '../background/storageLike';
 import { clearLibrary } from '../storage/favorites';
+import { isAutoBackupEnabled, lastBackupAt, pickBackupDir, removeBackupDir, setAutoBackupEnabled, syncBackupToDir } from '../storage/backup';
 import { Btn } from '../sidepanel/components/bits';
 
 type TestState = { kind: 'idle' } | { kind: 'testing' } | { kind: 'ok' } | { kind: 'fail'; message: string };
@@ -25,7 +26,42 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
+  const [recording, setRecording] = useState(false);
+  const [isMac, setIsMac] = useState(false);
+  const [backup, setBackup] = useState<{ enabled: boolean; lastAt: number; msg: string }>({ enabled: false, lastAt: 0, msg: '' });
   const skipAutosave = useRef(true);
+
+  useEffect(() => {
+    setIsMac(/mac/i.test(navigator.platform || navigator.userAgent));
+    void isAutoBackupEnabled().then(async (enabled) => {
+      const lastAt = await lastBackupAt();
+      setBackup((b) => ({ ...b, enabled, lastAt }));
+    });
+  }, []);
+
+  // 录键器：捕获一次组合键写入设置（自动保存生效）
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        setRecording(false);
+        return;
+      }
+      if (e.key.length !== 1) return; // 只接受单字符主键，修饰键继续等待
+      const hasModifier = e.ctrlKey || e.altKey || e.metaKey || e.shiftKey;
+      if (!hasModifier) {
+        setBackup((b) => ({ ...b, msg: '至少要带一个修饰键（Ctrl/Alt/⌘/Shift），避免和打字冲突' }));
+        return;
+      }
+      const combo: HotkeyCombo = { key: e.key.toUpperCase(), ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey, shift: e.shiftKey };
+      setSettings((s) => ({ ...s, ui: { ...s.ui, hotkey: combo } }));
+      setRecording(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [recording]);
 
   useEffect(() => {
     void (async () => {
@@ -205,17 +241,38 @@ export default function App() {
       </Section>
 
       <Section title="快捷键">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs leading-relaxed text-ink-600 dark:text-ink-300">
-            <p>
-              <kbd className="rounded border border-ink-300 bg-ink-50 px-1.5 py-0.5 font-mono text-[11px] dark:border-ink-600 dark:bg-ink-800">Alt + L</kbd>
-              　智能提取本文正文，逐段双语翻译（不翻导航/评论等无关内容）
-            </p>
-            <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">想在别的页面生效、或换成别的按键，去 Chrome 的快捷键设置里改。</p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs leading-relaxed text-ink-600 dark:text-ink-300">
+              <p>
+                <kbd className="rounded border border-ink-300 bg-ink-50 px-1.5 py-0.5 font-mono text-[11px] dark:border-ink-600 dark:bg-ink-800">
+                  {isMac ? '⌘⇧L' : 'Alt + L'}
+                </kbd>
+                　翻译本文：智能提取正文，侧边栏逐段双语对照
+              </p>
+              <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">这个键由 Chrome 管理，点右边按钮去 Chrome 设置里改。</p>
+            </div>
+            <Btn onClick={openShortcutSettings} className="shrink-0">
+              修改快捷键
+            </Btn>
           </div>
-          <Btn onClick={openShortcutSettings} className="shrink-0">
-            修改快捷键
-          </Btn>
+          <div className="flex items-center justify-between gap-3 border-t border-ink-100 pt-3 dark:border-ink-800">
+            <div className="text-xs leading-relaxed text-ink-600 dark:text-ink-300">
+              <p>
+                <kbd className="rounded border border-ink-300 bg-ink-50 px-1.5 py-0.5 font-mono text-[11px] dark:border-ink-600 dark:bg-ink-800">
+                  {formatHotkey(settings.ui.hotkey, isMac)}
+                </kbd>
+                　全文翻译：页面所有可见文字就地对照，重点表达虚线标注点击讲解（再按一次隐藏）
+              </p>
+              <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">
+                {recording ? '正在录制：按下想要的组合键（Esc 取消）' : '这个键在本扩展里自定义，想换就点右边录制。'}
+              </p>
+            </div>
+            <Btn variant={recording ? 'primary' : 'ghost'} className="shrink-0" onClick={() => setRecording((v) => !v)}>
+              {recording ? '录制中…' : '自定义按键'}
+            </Btn>
+          </div>
+          {backup.msg && recording && <p className="text-[11px] text-amber-600 dark:text-amber-400">{backup.msg}</p>}
         </div>
       </Section>
 
@@ -292,17 +349,6 @@ export default function App() {
                 className="w-full"
               />
             </Field>
-            <Field label="主题">
-              <select
-                value={settings.ui.theme}
-                onChange={(e) => update({ ui: { ...settings.ui, theme: e.target.value as Settings['ui']['theme'] } })}
-                className={inputCls}
-              >
-                <option value="auto">跟随系统</option>
-                <option value="light">亮色</option>
-                <option value="dark">暗色</option>
-              </select>
-            </Field>
             <Field label="浮动工具栏" hint="关闭后仍可用图标入口">
               <select
                 value={settings.ui.floatingBar}
@@ -342,6 +388,66 @@ export default function App() {
           </Field>
         </div>
       </details>
+
+      <Section title="存储位置">
+        <div className="space-y-2 text-xs leading-relaxed text-ink-600 dark:text-ink-300">
+          <p>
+            默认：所有收藏/笔记/练习存在<b>浏览器本地</b>（Windows/Mac 一样，安全且离线可用）。
+          </p>
+          <p>想额外存一份到你指定的文件夹（比如网盘同步目录）：选择文件夹后，知识库每次变化会自动把备份写进去。</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Btn
+            onClick={async () => {
+              const r = await pickBackupDir();
+              if (r.ok) {
+                const s = await syncBackupToDir();
+                const lastAt = await lastBackupAt();
+                setBackup((b) => ({ ...b, msg: s.message, lastAt, enabled: true }));
+                await setAutoBackupEnabled(true);
+              } else if (r.error && r.error !== '已取消') {
+                setBackup((b) => ({ ...b, msg: r.error ?? '' }));
+              }
+            }}
+          >
+            选择备份文件夹
+          </Btn>
+          <Btn
+            onClick={async () => {
+              const r = await syncBackupToDir();
+              const lastAt = await lastBackupAt();
+              setBackup((b) => ({ ...b, msg: r.message, lastAt }));
+            }}
+          >
+            立即同步
+          </Btn>
+          <label className="inline-flex items-center gap-1.5 text-xs">
+            <input
+              type="checkbox"
+              checked={backup.enabled}
+              onChange={async (e) => {
+                await setAutoBackupEnabled(e.target.checked);
+                setBackup((b) => ({ ...b, enabled: e.target.checked, msg: e.target.checked ? '已开启自动备份' : '已关闭自动备份' }));
+              }}
+              className="accent-indigo-600"
+            />
+            自动备份（每次收藏后静默写入）
+          </label>
+          <Btn
+            variant="danger"
+            onClick={async () => {
+              await removeBackupDir();
+              setBackup({ enabled: false, lastAt: 0, msg: '已恢复为仅浏览器本地存储' });
+            }}
+          >
+            停用文件夹备份
+          </Btn>
+        </div>
+        {backup.msg && <p className="text-[11px] text-ink-500 dark:text-ink-400">{backup.msg}</p>}
+        {backup.lastAt > 0 && (
+          <p className="text-[11px] text-ink-400">上次同步：{new Date(backup.lastAt).toLocaleString('zh-CN')}</p>
+        )}
+      </Section>
 
       <Section title="隐私与数据">
         <ul className="space-y-1 text-xs leading-relaxed text-ink-500 dark:text-ink-400">

@@ -15,6 +15,11 @@ export const LONG_TEXT_THRESHOLD = 4000;
 export const ARTICLE_BATCH_CHARS = 2400;
 /** 整文翻译：正文总字符上限 */
 export const ARTICLE_MAX_CHARS = 60000;
+/** 全文注入翻译：文本总量上限 */
+export const FULLPAGE_MAX_CHARS = 50000;
+
+/** 应用内自定义快捷键默认组合（Ctrl/Cmd + Alt + L，触发全文翻译注入） */
+export const DEFAULT_HOTKEY = { key: 'L', ctrl: true, alt: true, meta: false, shift: false } as const;
 /** 对话历史滚动窗口（轮） */
 export const CHAT_HISTORY_ROUNDS = 10;
 /** 会话缓存上限（条） */
@@ -33,6 +38,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   aborted: '已停止本次分析。',
   empty: '模型返回了空内容。',
   no_article: '没有在这页找到正文。这个页面可能不是文章页（比如首页或列表页）。',
+  fullpage_empty: '这页没有可翻译的可见文字。',
   unknown: '发生未知错误，请重试。',
 };
 

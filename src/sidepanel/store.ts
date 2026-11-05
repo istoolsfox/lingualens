@@ -41,7 +41,7 @@ import {
   updateEntry,
   type ListFilter,
 } from '../storage/favorites';
-import { exportToFile, importFromFile } from '../storage/backup';
+import { exportToFile, importFromFile, autoBackupIfEnabled } from '../storage/backup';
 import { getSettings, onSettingsChanged } from '../storage/settings';
 
 export type ViewKey = 'analysis' | 'library' | 'practice' | 'article';
@@ -54,6 +54,8 @@ export interface ArticleSlice {
   doneBatches: number;
   errorCode?: string;
   errorMessage?: string;
+  /** 缓存/复用信息（URL 命中或段落级复用） */
+  cacheInfo?: { cached: boolean; reused: number; fresh: number };
 }
 export type TabKey = 'overview' | 'structure' | 'grammar' | 'vocab' | 'collocations' | 'expression' | 'chat';
 
@@ -212,12 +214,22 @@ export const useStore = create<PanelState>()((set, get) => {
         void refreshSession(st.session?.id ?? null).then(() => set({ chatStreaming: false }));
       } else if (msg.channel === 'article') {
         const art = get().article;
+        const info = msg.payload as { cached?: boolean; reused?: number; fresh?: number } | undefined;
         if (!msg.ok) {
           set({
             article: { ...art, phase: 'error', errorCode: msg.errorCode, errorMessage: msg.errorMessage },
           });
         } else {
-          set({ article: { ...art, phase: 'done' } });
+          set({
+            article: {
+              ...art,
+              phase: 'done',
+              cacheInfo:
+                info && typeof info.reused === 'number'
+                  ? { cached: info.cached === true, reused: info.reused ?? 0, fresh: info.fresh ?? 0 }
+                  : art.cacheInfo,
+            },
+          });
         }
       }
     }
@@ -314,13 +326,14 @@ export const useStore = create<PanelState>()((set, get) => {
     practiceBusy: null,
     practiceError: null,
 
-    article: {
-      phase: 'idle',
-      payload: null,
-      results: {},
-      totalBatches: 0,
-      doneBatches: 0,
-    },
+  article: {
+    phase: 'idle',
+    payload: null,
+    results: {},
+    totalBatches: 0,
+    doneBatches: 0,
+    cacheInfo: undefined,
+  },
 
     beginArticle(payload) {
       set({
@@ -333,6 +346,7 @@ export const useStore = create<PanelState>()((set, get) => {
           doneBatches: 0,
           errorCode: undefined,
           errorMessage: undefined,
+          cacheInfo: undefined,
         },
       });
     },
@@ -404,10 +418,8 @@ export const useStore = create<PanelState>()((set, get) => {
     },
 
     applyTheme() {
-      const theme = get().settings.ui.theme;
-      const dark =
-        theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.classList.toggle('dark', dark);
+      // v0.3 固定暗色主题（G 暗色应用壳），不再随系统/手动切换
+      document.documentElement.classList.add('dark');
     },
 
     async acknowledgePrivacy() {
@@ -575,6 +587,8 @@ export const useStore = create<PanelState>()((set, get) => {
       if (st.libTag !== 'all') filter.tag = st.libTag;
       const [entries, tags] = await Promise.all([listEntries(filter), listTags()]);
       set({ entries, tags, libLoading: false });
+      // 自定义备份目录：库变更后静默同步（未授权/未开启时内部自动跳过）
+      void autoBackupIfEnabled();
     },
 
     setLibFilter(patch) {
