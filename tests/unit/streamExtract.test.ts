@@ -3,7 +3,8 @@ import { extractOverviewPartial } from '../../src/ai/streamExtract';
 
 describe('extractOverviewPartial 流式增量提取', () => {
   it('完整字段全部提取', () => {
-    const json = '{"detected_type":"sentence","summary":"最终理解","translation":{"literal":"直译","natural":"意译"},"chunks":[]}';
+    const json =
+      '{"detected_type":"sentence","summary":"最终理解","translation":{"literal":"直译","natural":"意译"},"chunks":[]}';
     const p = extractOverviewPartial(json);
     expect(p).toEqual({ detectedType: 'sentence', summary: '最终理解', literal: '直译', natural: '意译' });
   });

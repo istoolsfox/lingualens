@@ -35,7 +35,9 @@ export function ArticleView() {
           <div className="min-w-0 flex-1">
             <h2 className="text-[13.5px] font-semibold leading-snug">{p.title}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-400 dark:text-ink-500">
-              <span className="rounded bg-emerald-100 px-1.5 py-px font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">整文翻译</span>
+              <span className="rounded bg-emerald-100 px-1.5 py-px font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                整文翻译
+              </span>
               {host && <span className="max-w-[180px] truncate">{host}</span>}
               {p.byline && <span className="max-w-[140px] truncate">{p.byline}</span>}
               {p.truncated && <span className="text-amber-600 dark:text-amber-400">正文过长，已取前部</span>}
@@ -62,12 +64,15 @@ export function ArticleView() {
           </div>
           <div className="mt-1 flex items-center justify-between text-[11px] text-ink-400 dark:text-ink-500">
             <span>
-              {art.phase === 'running' ? '翻译中…' : art.phase === 'error' ? '已停止/出错' : '翻译完成'} · {translated}/{p.blocks.length} 段
+              {art.phase === 'running' ? '翻译中…' : art.phase === 'error' ? '已停止/出错' : '翻译完成'} ·{' '}
+              {translated}/{p.blocks.length} 段
             </span>
             {art.phase === 'running' && <Spinner label="" />}
           </div>
           {art.phase === 'done' && art.cacheInfo?.cached && (
-            <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">这个页面之前翻过且内容没变，已直接使用缓存（0 token）</p>
+            <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+              这个页面之前翻过且内容没变，已直接使用缓存（0 token）
+            </p>
           )}
           {art.phase === 'done' && art.cacheInfo && !art.cacheInfo.cached && art.cacheInfo.reused > 0 && (
             <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
@@ -92,12 +97,22 @@ export function ArticleView() {
         {p.blocks.map((b) => {
           const t = art.results[b.id];
           return (
-            <div key={b.id} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+            <div
+              key={b.id}
+              className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+            >
               <details>
-                <summary className="cursor-pointer text-[11.5px] leading-relaxed text-ink-500 dark:text-ink-400 select-text">{b.text}</summary>
+                <summary className="cursor-pointer text-[11.5px] leading-relaxed text-ink-500 dark:text-ink-400 select-text">
+                  {b.text}
+                </summary>
               </details>
               <p className="mt-1.5 select-text text-[13px] leading-relaxed">
-                {t ?? (art.phase === 'running' ? <span className="text-ink-300 dark:text-ink-600">…</span> : <span className="text-ink-300 dark:text-ink-600">（未翻译）</span>)}
+                {t ??
+                  (art.phase === 'running' ? (
+                    <span className="text-ink-300 dark:text-ink-600">…</span>
+                  ) : (
+                    <span className="text-ink-300 dark:text-ink-600">（未翻译）</span>
+                  ))}
               </p>
             </div>
           );

@@ -5,7 +5,18 @@
 // 本模块只做纯解析，不发请求，方便单测
 // ============================================================
 
-import type { AnalysisResult, CollocationItem, ExpressionNote, GrammarPoint, LightResult, Mode, SenseChunk, StructureItem, VocabCard, WordInfo } from '../shared/types';
+import type {
+  AnalysisResult,
+  CollocationItem,
+  ExpressionNote,
+  GrammarPoint,
+  LightResult,
+  Mode,
+  SenseChunk,
+  StructureItem,
+  VocabCard,
+  WordInfo,
+} from '../shared/types';
 import { guessMode } from './router';
 
 export type ParseOk<T> = { ok: true; data: T; level: 1 | 2 };
@@ -51,7 +62,9 @@ function asStringArray(v: unknown): string[] {
 }
 
 function coerceMode(v: unknown, fallbackText: string): Mode {
-  return typeof v === 'string' && (VALID_MODES as string[]).includes(v) ? (v as Mode) : guessMode(fallbackText);
+  return typeof v === 'string' && (VALID_MODES as string[]).includes(v)
+    ? (v as Mode)
+    : guessMode(fallbackText);
 }
 
 function coerceTranslation(v: unknown): AnalysisResult['translation'] {
@@ -81,7 +94,11 @@ function coerceStructure(v: unknown): StructureItem[] | undefined {
     .map((x): StructureItem | null => {
       const o = (x ?? {}) as Record<string, unknown>;
       if (!asString(o.text)) return null;
-      return { component: asString(o.component) || '成分', text: asString(o.text), explanation: asString(o.explanation) };
+      return {
+        component: asString(o.component) || '成分',
+        text: asString(o.text),
+        explanation: asString(o.explanation),
+      };
     })
     .filter((x): x is StructureItem => x !== null);
   return out.length ? out : undefined;
@@ -98,7 +115,9 @@ function coerceGrammar(v: unknown): GrammarPoint[] | undefined {
         quote: asString(o.quote) || undefined,
         explanation: asString(o.explanation),
         alternative: asString(o.alternative) || undefined,
-        kind: (o.kind === 'rule' || o.kind === 'habit' || o.kind === 'style' ? o.kind : undefined) as GrammarPoint['kind'],
+        kind: (o.kind === 'rule' || o.kind === 'habit' || o.kind === 'style'
+          ? o.kind
+          : undefined) as GrammarPoint['kind'],
       };
     })
     .filter((x): x is GrammarPoint => x !== null);
@@ -135,7 +154,9 @@ function coerceCollocations(v: unknown): CollocationItem[] | undefined {
         meaning: asString(o.meaning),
         usage_note: asString(o.usage_note) || undefined,
         examples: asStringArray(o.examples),
-        kind: (o.kind === 'rule' || o.kind === 'habit' || o.kind === 'style' ? o.kind : undefined) as CollocationItem['kind'],
+        kind: (o.kind === 'rule' || o.kind === 'habit' || o.kind === 'style'
+          ? o.kind
+          : undefined) as CollocationItem['kind'],
       };
     })
     .filter((x): x is CollocationItem => x !== null);
@@ -152,7 +173,9 @@ function coerceExpression(v: unknown): ExpressionNote[] | undefined {
         title: asString(o.title),
         en_side: asString(o.en_side),
         cn_side: asString(o.cn_side),
-        kind: (o.kind === 'rule' || o.kind === 'habit' || o.kind === 'style' ? o.kind : undefined) as ExpressionNote['kind'],
+        kind: (o.kind === 'rule' || o.kind === 'habit' || o.kind === 'style'
+          ? o.kind
+          : undefined) as ExpressionNote['kind'],
       };
     })
     .filter((x): x is ExpressionNote => x !== null);
@@ -176,7 +199,9 @@ function coerceWordInfo(v: unknown): WordInfo | undefined {
     ? o.compare
         .map((c): { expression: string; difference: string } | null => {
           const c0 = (c ?? {}) as Record<string, unknown>;
-          return asString(c0.expression) ? { expression: asString(c0.expression), difference: asString(c0.difference) } : null;
+          return asString(c0.expression)
+            ? { expression: asString(c0.expression), difference: asString(c0.difference) }
+            : null;
         })
         .filter((c): c is { expression: string; difference: string } => c !== null)
     : undefined;
@@ -230,15 +255,17 @@ export function parseAnalysis(raw: string, fallbackText: string): ParseResult<An
   const normalized = normalizeAnalysis(obj, fallbackText);
   // 结构底线：必须有 translation 或 summary 或 word_info 之一有实质内容
   const hasContent =
-    normalized.summary.length > 0 ||
-    normalized.translation.natural.length > 0 ||
-    !!normalized.word_info;
+    normalized.summary.length > 0 || normalized.translation.natural.length > 0 || !!normalized.word_info;
   if (!hasContent) return { ok: false, reason: 'empty-content' };
   return { ok: true, data: normalized, level: raw === JSON.stringify(obj) ? 1 : 2 };
 }
 
 /** 解析轻动作（翻译/解释）输出 */
-export function parseLight(raw: string, action: 'translate' | 'explain', fallbackText: string): ParseResult<LightResult> {
+export function parseLight(
+  raw: string,
+  action: 'translate' | 'explain',
+  fallbackText: string,
+): ParseResult<LightResult> {
   const obj = extractJsonObject(raw);
   if (obj === undefined) return { ok: false, reason: 'no-json-found' };
   const o = (typeof obj === 'object' && obj !== null ? obj : {}) as Record<string, unknown>;
@@ -248,7 +275,8 @@ export function parseLight(raw: string, action: 'translate' | 'explain', fallbac
     result.summary = asString(o.summary);
     const expr = coerceExpression(o.expression);
     if (expr) result.expression = expr;
-    if (!result.translation.natural && !result.translation.literal) return { ok: false, reason: 'empty-content' };
+    if (!result.translation.natural && !result.translation.literal)
+      return { ok: false, reason: 'empty-content' };
   } else {
     result.summary = asString(o.summary);
     const expr = coerceExpression(o.expression);

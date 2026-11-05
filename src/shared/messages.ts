@@ -3,7 +3,16 @@
 // CS = content script, SW = service worker, SP = side panel
 // ============================================================
 
-import type { AnalysisResult, ChatMessage, Depth, Entry, LightAction, LightResult, Mode, PracticeSession } from './types';
+import type {
+  AnalysisResult,
+  ChatMessage,
+  Depth,
+  Entry,
+  LightAction,
+  LightResult,
+  Mode,
+  PracticeSession,
+} from './types';
 
 /** 会话视图（SW → Panel 的会话序列化格式） */
 export interface SessionView {
@@ -95,15 +104,6 @@ export interface FullPageErrorMsg {
   errorMessage?: string;
 }
 
-export interface FullPageBatchItem {
-  natural: string;
-}
-
-export interface FullPageHighlightItem {
-  expr: string;
-  why: string;
-}
-
 export type Msg =
   | { type: 'SELECTION_SNAPSHOT'; snapshot: Snapshot }
   | { type: 'OPEN_PANEL' }
@@ -114,7 +114,12 @@ export type Msg =
   | { type: 'FULLPAGE_TRANSLATE'; payload: FullPagePayload }
   | { type: 'FULLPAGE_CANCEL' }
   | { type: 'ANALYZE_CANCEL'; analysisId: string }
-  | { type: 'FOLLOWUP'; analysisId: string; question: string; ctx?: { snapshot: Snapshot; analysis: AnalysisResult | LightResult } }
+  | {
+      type: 'FOLLOWUP';
+      analysisId: string;
+      question: string;
+      ctx?: { snapshot: Snapshot; analysis: AnalysisResult | LightResult };
+    }
   | { type: 'FOLLOWUP_CANCEL'; analysisId: string }
   | { type: 'SESSION_GET'; analysisId: string }
   | { type: 'TOOLBAR_ACTION'; snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' | 'favorite' }
@@ -129,7 +134,6 @@ export type Msg =
 /** GET_STATE 响应 */
 export interface GetStateResponse {
   pending?: { snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' };
-  articlePending?: ArticlePayload;
   article?: ArticleStateView;
   restricted: boolean;
   sessions: unknown[];
@@ -160,17 +164,6 @@ export interface AnalysisDoneMsg {
   raw?: string;
   /** practice 等场景的随附数据 */
   payload?: unknown;
-}
-
-export interface SessionStateMsg {
-  type: 'session';
-  analysisId: string;
-  /** 空闲/分析中/完成/失败 */
-  status: 'idle' | 'running' | 'done' | 'error';
-  bufferedText: string;
-  result?: unknown;
-  lightResult?: unknown;
-  chat?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 /** SW → Panel：有待处理的新快照（浮动栏/图标入口触发） */
@@ -204,15 +197,7 @@ export interface ArticleStateView {
   truncated?: boolean;
 }
 
-export type PortSwMsg =
-  | AnalysisChunkMsg
-  | AnalysisDoneMsg
-  | SessionStateMsg
-  | PendingMsg
-  | PendingArticleMsg
-  | ArticleBatchMsg;
-
-export type PortPanelMsg = { type: 'hello' } | { type: 'resync'; analysisId: string };
+export type PortSwMsg = AnalysisChunkMsg | AnalysisDoneMsg | PendingMsg | PendingArticleMsg | ArticleBatchMsg;
 
 /** Port 通道名 */
 export const PORT_NAME = 'lingualens-port';
@@ -223,5 +208,4 @@ export const channels = {
   practice: 'practice',
 };
 
-export const isMsg = (v: unknown): v is Msg =>
-  typeof v === 'object' && v !== null && 'type' in v;
+export const isMsg = (v: unknown): v is Msg => typeof v === 'object' && v !== null && 'type' in v;

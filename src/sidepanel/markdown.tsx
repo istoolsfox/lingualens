@@ -10,9 +10,29 @@ import DOMPurify from 'dompurify';
 marked.setOptions({ async: false, gfm: true, breaks: true });
 
 const ALLOWED_TAGS = [
-  'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's',
-  'ul', 'ol', 'li', 'code', 'pre', 'blockquote',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'span', 'div',
+  'p',
+  'br',
+  'strong',
+  'em',
+  'b',
+  'i',
+  'u',
+  's',
+  'ul',
+  'ol',
+  'li',
+  'code',
+  'pre',
+  'blockquote',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'hr',
+  'span',
+  'div',
 ];
 
 export function Markdown({ text, className }: { text: string; className?: string }) {

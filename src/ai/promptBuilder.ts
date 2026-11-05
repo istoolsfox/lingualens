@@ -34,9 +34,6 @@ import { routeHint } from './router';
 export interface BuiltPrompt {
   system: string;
   user: string;
-  /** strictJson 开启时随请求发送的 response_format schema */
-  schema?: object;
-  schemaName?: string;
 }
 
 const MODE_TEMPLATES: Record<Mode, string> = {
@@ -105,8 +102,6 @@ export function buildAnalysisPrompt(
   return {
     system: fill(disciplineMd, {}),
     user: appendSchema(user, MODE_SCHEMAS[mode]),
-    schema: MODE_SCHEMAS[mode],
-    schemaName: `lingualens_${mode}`,
   };
 }
 
@@ -119,8 +114,6 @@ export function buildLightPrompt(action: LightAction, guess: Mode, ctx: PromptCo
   return {
     system: fill(disciplineMd, {}),
     user: appendSchema(user, schema),
-    schema,
-    schemaName: `lingualens_${action}`,
   };
 }
 
@@ -140,7 +133,10 @@ export function buildChatPrompt(
           .map((m) => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`)
           .join('\n')
           .slice(-3000);
-  const user = fill(conversationMd, commonVars(ctx, { ANALYSIS_DIGEST: digest, CHAT_HISTORY: historyText, QUESTION: question }));
+  const user = fill(
+    conversationMd,
+    commonVars(ctx, { ANALYSIS_DIGEST: digest, CHAT_HISTORY: historyText, QUESTION: question }),
+  );
   return { system: fill(disciplineMd, {}), user };
 }
 
@@ -187,18 +183,27 @@ export function buildPracticeGeneratePrompt(
     COUNT: String(count),
   });
   const schema = (practiceSchema as Record<string, object>).generate ?? {};
-  return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_quiz' };
+  return {
+    system: fill(disciplineMd, {}),
+    user: appendSchema(user, schema),
+  };
 }
 
 /** 主观题批改 prompt */
-export function buildPracticeGradePrompt(questions: Question[], answers: { questionId: string; answer: string }[]): BuiltPrompt {
+export function buildPracticeGradePrompt(
+  questions: Question[],
+  answers: { questionId: string; answer: string }[],
+): BuiltPrompt {
   const qJson = JSON.stringify(
     questions.map((q) => ({ id: q.id, type: q.type, prompt: q.prompt, answer: q.answer })),
   );
   const aJson = JSON.stringify(answers);
   const user = fill(practiceGradeMd, { QUESTIONS: qJson, ANSWERS: aJson });
   const schema = (practiceSchema as Record<string, object>).grade ?? {};
-  return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_grade' };
+  return {
+    system: fill(disciplineMd, {}),
+    user: appendSchema(user, schema),
+  };
 }
 
 /** 重试提示（L3：解析失败后追加的纠偏指令） */
@@ -206,16 +211,16 @@ export const RETRY_INSTRUCTION =
   '你上一次的输出无法解析为合法 JSON。请重新输出：只输出一个合法 JSON 对象，不要 markdown 围栏、不要任何解释文字、字符串内正确转义引号。';
 
 /** 整文翻译批次 prompt */
-export function buildArticleBatchPrompt(
-  title: string,
-  blocks: { id: number; text: string }[],
-): BuiltPrompt {
+export function buildArticleBatchPrompt(title: string, blocks: { id: number; text: string }[]): BuiltPrompt {
   const user = fill(articleTranslateMd, {
     ARTICLE_TITLE: title || '(未知标题)',
     BLOCKS_JSON: JSON.stringify(blocks),
   });
   const schema = articleSchema as object;
-  return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_article' };
+  return {
+    system: fill(disciplineMd, {}),
+    user: appendSchema(user, schema),
+  };
 }
 
 /** 全文注入翻译批次 prompt（含讲解点挖掘） */
@@ -228,5 +233,8 @@ export function buildFullPageBatchPrompt(
     UNITS_JSON: JSON.stringify(units),
   });
   const schema = fullpageSchema as object;
-  return { system: fill(disciplineMd, {}), user: appendSchema(user, schema), schema, schemaName: 'lingualens_fullpage' };
+  return {
+    system: fill(disciplineMd, {}),
+    user: appendSchema(user, schema),
+  };
 }

@@ -60,7 +60,11 @@ export async function loadApiKey(storage: StorageLike): Promise<string> {
   try {
     const { iv, ct } = JSON.parse(enc) as { iv: string; ct: string };
     const key = await getOrCreateDeviceKey(storage);
-    const plain = await subtle.decrypt({ name: 'AES-GCM', iv: fromB64(iv) as unknown as BufferSource }, key, fromB64(ct) as unknown as BufferSource);
+    const plain = await subtle.decrypt(
+      { name: 'AES-GCM', iv: fromB64(iv) as unknown as BufferSource },
+      key,
+      fromB64(ct) as unknown as BufferSource,
+    );
     return new TextDecoder().decode(plain);
   } catch {
     // 设备密钥丢失/损坏（如手工改存储），密文不可恢复：要求用户重新配置

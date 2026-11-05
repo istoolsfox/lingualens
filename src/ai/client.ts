@@ -3,7 +3,7 @@
 // 只负责一次 HTTP 调用；重试策略由上层（aiService）编排
 // ============================================================
 
-import { AiError, classifyStatus, extractServerMessage } from './errors';
+import { AiError, classifyStatus, extractServerMessage, isRetryable } from './errors';
 
 export interface EndpointConfig {
   baseUrl: string;
@@ -51,7 +51,15 @@ class AbortHub {
   constructor(timeoutMs: number, external?: AbortSignal) {
     if (external) {
       if (external.aborted) this.userAborted = true;
-      else external.addEventListener('abort', () => { this.userAborted = true; this.controller.abort(); }, { once: true });
+      else
+        external.addEventListener(
+          'abort',
+          () => {
+            this.userAborted = true;
+            this.controller.abort();
+          },
+          { once: true },
+        );
     }
     this.wholeTimer = setTimeout(() => this.controller.abort(), timeoutMs);
     // stall 计时只服务流式读取（每收到一块重置）；非流式请求仅受总超时约束
@@ -165,8 +173,7 @@ async function readSse(
           const obj = JSON.parse(payload) as {
             choices?: { delta?: { content?: string }; message?: { content?: string } }[];
           };
-          const delta =
-            obj.choices?.[0]?.delta?.content ?? obj.choices?.[0]?.message?.content ?? '';
+          const delta = obj.choices?.[0]?.delta?.content ?? obj.choices?.[0]?.message?.content ?? '';
           if (delta) {
             acc += delta;
             onDelta?.(delta, acc);
@@ -183,23 +190,16 @@ async function readSse(
 }
 
 /** 带一次重试的调用（网络/超时/限流/5xx 自动退避重试；用户中止与鉴权错误不重试） */
-export async function chatCompletionWithRetry(
-  cfg: EndpointConfig,
-  opts: ChatOptions,
-): Promise<string> {
+export async function chatCompletionWithRetry(cfg: EndpointConfig, opts: ChatOptions): Promise<string> {
   try {
     return await chatCompletion(cfg, opts);
   } catch (err) {
-    if (err instanceof AiError && isRetryableCode(err.code)) {
+    if (err instanceof AiError && isRetryable(err.code)) {
       await sleep(2000);
       return chatCompletion(cfg, opts);
     }
     throw err;
   }
-}
-
-function isRetryableCode(code: string): boolean {
-  return code === 'network' || code === 'timeout' || code === 'rate_limit' || code === 'server';
 }
 
 function sleep(ms: number): Promise<void> {

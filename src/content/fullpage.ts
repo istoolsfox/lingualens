@@ -10,7 +10,23 @@ import type { FullPageHighlight } from '../shared/messages';
 import type { HotkeyLike } from './hotkeyTypes';
 
 const TAG = 'data-ll';
-const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'OPTION', 'SVG', 'CANVAS', 'CODE', 'PRE', 'KBD', 'SAMP', 'IFRAME', 'TEMPLATE']);
+const SKIP_TAGS = new Set([
+  'SCRIPT',
+  'STYLE',
+  'NOSCRIPT',
+  'TEXTAREA',
+  'INPUT',
+  'SELECT',
+  'OPTION',
+  'SVG',
+  'CANVAS',
+  'CODE',
+  'PRE',
+  'KBD',
+  'SAMP',
+  'IFRAME',
+  'TEMPLATE',
+]);
 
 // ---------- 状态 ----------
 
@@ -20,20 +36,20 @@ interface Unit {
   container: Element;
 }
 
-let units: Unit[] = [];
 let unitContainers = new Map<number, Element>();
 let injected = false;
 let visible = false;
 let translating = false;
 let translatedCount = 0;
-let highlightCount = 0;
 let pillHost: HTMLDivElement | null = null;
 let cardHost: HTMLDivElement | null = null;
 
 // ---------- 可见性与收集 ----------
 
 function isVisible(el: Element): boolean {
-  const withCheck = el as Element & { checkVisibility?: (o?: { checkOpacity?: boolean; visibilityProperty?: boolean }) => boolean };
+  const withCheck = el as Element & {
+    checkVisibility?: (o?: { checkOpacity?: boolean; visibilityProperty?: boolean }) => boolean;
+  };
   if (typeof withCheck.checkVisibility === 'function') {
     return withCheck.checkVisibility({ checkOpacity: true, visibilityProperty: true });
   }
@@ -86,7 +102,11 @@ function collectUnits(): { units: Unit[]; truncated: boolean } {
 
 /** 注入锚点：行内元素的译文挂到最近的块级祖先，避免打断行内布局 */
 function blockAnchor(el: Element): Element {
-  return el.closest('p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, td, th, div, section, article') ?? el;
+  return (
+    el.closest(
+      'p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, td, th, div, section, article',
+    ) ?? el
+  );
 }
 
 // ---------- 注入 ----------
@@ -129,7 +149,6 @@ function applyHighlights(highlights: FullPageHighlight[]): void {
       span.dataset['why'] = h.why;
       span.style.cssText = 'border-bottom:1.5px dashed #1a88ff;cursor:pointer;';
       range.surroundContents(span);
-      highlightCount++;
     } catch {
       // 包裹失败（跨节点等）直接跳过该讲解点，不影响翻译
     }
@@ -195,18 +214,20 @@ function showCard(target: HTMLElement): void {
       // 取该词所在段落文本作上下文，交给侧边栏做完整精读
       const container = target.closest(`[${TAG}]`)?.previousElementSibling ?? target.closest('p, li, div');
       const ctx = (container?.textContent ?? '').slice(0, 400);
-      void chrome.runtime.sendMessage({
-        type: 'TOOLBAR_ACTION',
-        snapshot: {
-          text: expr,
-          contextBefore: ctx.slice(0, 200),
-          contextAfter: '',
-          url: location.href,
-          title: document.title,
-          source: 'floating-bar',
-        },
-        action: 'analyze',
-      }).catch(() => undefined);
+      void chrome.runtime
+        .sendMessage({
+          type: 'TOOLBAR_ACTION',
+          snapshot: {
+            text: expr,
+            contextBefore: ctx.slice(0, 200),
+            contextAfter: '',
+            url: location.href,
+            title: document.title,
+            source: 'floating-bar',
+          },
+          action: 'analyze',
+        })
+        .catch(() => undefined);
       hideCard();
     }
   });
@@ -225,7 +246,8 @@ function showCard(target: HTMLElement): void {
   setTimeout(() => {
     const outside = (ev: Event) => {
       const path = ev.composedPath();
-      if (!cardHost || path.includes(cardHost) || (ev.target as HTMLElement)?.closest?.('[data-ll-term]')) return;
+      if (!cardHost || path.includes(cardHost) || (ev.target as HTMLElement)?.closest?.('[data-ll-term]'))
+        return;
       hideCard();
       document.removeEventListener('mousedown', outside, true);
       document.removeEventListener('keydown', esc, true);
@@ -291,13 +313,11 @@ function hidePill(): void {
 
 function clearInjection(): void {
   document.querySelectorAll(`[${TAG}]`).forEach((n) => n.remove());
-  units = [];
   unitContainers = new Map();
   injected = false;
   visible = false;
   translating = false;
   translatedCount = 0;
-  highlightCount = 0;
 }
 
 function setAllVisible(v: boolean): void {
@@ -325,8 +345,7 @@ export async function toggleFullPage(): Promise<void> {
     setTimeout(hidePill, 4000);
     return;
   }
-  units = collected;
-  unitContainers = new Map(units.map((u) => [u.id, u.container]));
+  unitContainers = new Map(collected.map((u) => [u.id, u.container]));
   injected = true;
   visible = true;
   translating = true;
@@ -334,7 +353,12 @@ export async function toggleFullPage(): Promise<void> {
   await chrome.runtime
     .sendMessage({
       type: 'FULLPAGE_TRANSLATE',
-      payload: { url: location.href, title: document.title, units: units.map((u) => ({ id: u.id, text: u.text })), truncated },
+      payload: {
+        url: location.href,
+        title: document.title,
+        units: collected.map((u) => ({ id: u.id, text: u.text })),
+        truncated,
+      },
     })
     .catch(() => undefined);
 }
@@ -353,7 +377,6 @@ export function handleFullPageMessage(msg: unknown): boolean {
   if (m?.type === 'FULLPAGE_DONE') {
     translating = false;
     const d = msg as { translated: number; highlights: number; reused: number };
-    highlightCount = d.highlights;
     const reusedPart = d.reused > 0 ? ` · 复用缓存 ${d.reused} 段` : '';
     setPill('done', `已翻译 ${d.translated} 段 · ${d.highlights} 个讲解点${reusedPart} · 点击关闭`);
     return true;
@@ -361,7 +384,10 @@ export function handleFullPageMessage(msg: unknown): boolean {
   if (m?.type === 'FULLPAGE_ERROR') {
     translating = false;
     const e = msg as { errorCode: string; errorMessage?: string };
-    const hint = e.errorCode === 'not_configured' ? '请先在 LinguaLens 设置里配置厂商与密钥' : (e.errorMessage ?? e.errorCode);
+    const hint =
+      e.errorCode === 'not_configured'
+        ? '请先在 LinguaLens 设置里配置厂商与密钥'
+        : (e.errorMessage ?? e.errorCode);
     setPill('err', `翻译失败：${hint}（点击关闭）`);
     return true;
   }
@@ -418,15 +444,15 @@ export function initFullPage(): void {
     true,
   );
   // 讲解点点击 → 弹卡（事件委托，注入的 span 无需单独绑）
-  document.addEventListener('click', (e) => {
-    const term = (e.target as HTMLElement)?.closest?.('[data-ll-term]') as HTMLElement | null;
-    if (!term) return;
-    e.preventDefault();
-    e.stopPropagation();
-    showCard(term);
-  }, true);
-}
-
-export function injectionStats(): { injected: boolean; translated: number; highlights: number } {
-  return { injected, translated: translatedCount, highlights: highlightCount };
+  document.addEventListener(
+    'click',
+    (e) => {
+      const term = (e.target as HTMLElement)?.closest?.('[data-ll-term]') as HTMLElement | null;
+      if (!term) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showCard(term);
+    },
+    true,
+  );
 }

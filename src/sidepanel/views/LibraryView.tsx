@@ -26,12 +26,10 @@ export function LibraryView() {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => st.setLibFilter({ query: queryInput }), 250);
     return () => clearTimeout(debounceRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryInput]);
 
   useEffect(() => {
     void st.loadLibrary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selected = st.entries.find((e) => e.id === st.libSelectedId) ?? null;
@@ -58,7 +56,11 @@ export function LibraryView() {
               全部标签
             </Chip>
             {st.tags.map((t) => (
-              <Chip key={t.name} active={st.libTag === t.name} onClick={() => st.setLibFilter({ tag: t.name })}>
+              <Chip
+                key={t.name}
+                active={st.libTag === t.name}
+                onClick={() => st.setLibFilter({ tag: t.name })}
+              >
                 {t.name} ({t.count})
               </Chip>
             ))}
@@ -90,7 +92,9 @@ export function LibraryView() {
           <div className="flex-1" />
           <span className="text-ink-400 dark:text-ink-500">{st.entries.length} 条</span>
         </div>
-        {st.importReport && <p className="text-[11px] text-emerald-600 dark:text-emerald-400">{st.importReport}</p>}
+        {st.importReport && (
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400">{st.importReport}</p>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
@@ -101,7 +105,12 @@ export function LibraryView() {
         ) : (
           <div className="space-y-2">
             {st.entries.map((e) => (
-              <EntryCard key={e.id} entry={e} expanded={st.libSelectedId === e.id} onToggle={() => st.selectEntry(st.libSelectedId === e.id ? null : e.id)} />
+              <EntryCard
+                key={e.id}
+                entry={e}
+                expanded={st.libSelectedId === e.id}
+                onToggle={() => st.selectEntry(st.libSelectedId === e.id ? null : e.id)}
+              />
             ))}
           </div>
         )}
@@ -125,12 +134,23 @@ function EntryCard({ entry, expanded, onToggle }: { entry: Entry; expanded: bool
       }`}
     >
       <div className="flex items-center gap-1.5 text-[11px] text-ink-400 dark:text-ink-500">
-        <span className="rounded bg-ink-100 px-1.5 py-px dark:bg-ink-800">{MODE_LABELS[entry.type] ?? entry.type}</span>
-        <span className="truncate">{new Date(entry.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="rounded bg-ink-100 px-1.5 py-px dark:bg-ink-800">
+          {MODE_LABELS[entry.type] ?? entry.type}
+        </span>
+        <span className="truncate">
+          {new Date(entry.createdAt).toLocaleString('zh-CN', {
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </span>
         {entry.tags.length > 0 && <span className="truncate text-accent-500">#{entry.tags.join(' #')}</span>}
       </div>
       <p className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-snug">{entry.text}</p>
-      {summary && !expanded && <p className="mt-0.5 line-clamp-1 text-[11px] text-ink-400 dark:text-ink-500">{summary}</p>}
+      {summary && !expanded && (
+        <p className="mt-0.5 line-clamp-1 text-[11px] text-ink-400 dark:text-ink-500">{summary}</p>
+      )}
     </button>
   );
 }
@@ -155,9 +175,7 @@ function EntryDetail({ entry }: { entry: Entry }) {
   return (
     <div className="border-t border-ink-200 p-3 dark:border-ink-800">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] text-ink-400 dark:text-ink-500">
-          {entry.sourceTitle || '来源未知'}
-        </span>
+        <span className="text-[11px] text-ink-400 dark:text-ink-500">{entry.sourceTitle || '来源未知'}</span>
         <div className="flex gap-1">
           <Btn onClick={() => void st.openEntry(entry.id)}>打开分析</Btn>
           <Btn variant="danger" onClick={() => void st.removeEntry(entry.id)}>
@@ -168,12 +186,20 @@ function EntryDetail({ entry }: { entry: Entry }) {
 
       <div className="flex flex-wrap gap-1">
         {entry.tags.map((t) => (
-          <span key={t} className="inline-flex items-center gap-0.5 rounded-full bg-accent-100 px-2 py-0.5 text-[11px] text-accent-700 dark:bg-accent-700/30 dark:text-accent-200">
+          <span
+            key={t}
+            className="inline-flex items-center gap-0.5 rounded-full bg-accent-100 px-2 py-0.5 text-[11px] text-accent-700 dark:bg-accent-700/30 dark:text-accent-200"
+          >
             #{t}
             <button
               type="button"
               className="opacity-60 hover:opacity-100"
-              onClick={() => void st.saveEntryTags(entry.id, entry.tags.filter((x) => x !== t))}
+              onClick={() =>
+                void st.saveEntryTags(
+                  entry.id,
+                  entry.tags.filter((x) => x !== t),
+                )
+              }
             >
               ✕
             </button>

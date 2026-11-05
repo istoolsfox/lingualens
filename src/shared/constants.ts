@@ -20,8 +20,6 @@ export const FULLPAGE_MAX_CHARS = 50000;
 
 /** 应用内自定义快捷键默认组合（Ctrl/Cmd + Alt + L，触发全文翻译注入） */
 export const DEFAULT_HOTKEY = { key: 'L', ctrl: true, alt: true, meta: false, shift: false } as const;
-/** 对话历史滚动窗口（轮） */
-export const CHAT_HISTORY_ROUNDS = 10;
 /** 会话缓存上限（条） */
 export const SESSION_CACHE_LIMIT = 20;
 

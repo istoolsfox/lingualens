@@ -9,6 +9,7 @@ import {
   isMsg,
   type ArticlePayload,
   type GetStateResponse,
+  type Msg,
   type Snapshot,
   type StartResponse,
 } from '../shared/messages';
@@ -50,9 +51,12 @@ async function setPendingArticle(payload: ArticlePayload): Promise<void> {
   broadcast({ type: 'pending-article', payload });
 }
 
-async function getPending(): Promise<{ snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' } | undefined> {
+async function getPending(): Promise<
+  { snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' } | undefined
+> {
   const res = await chrome.storage.session.get(PENDING_KEY);
-  const p = res[PENDING_KEY] as { snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' } | undefined;
+  const p = res[PENDING_KEY] as
+    { snapshot: Snapshot; action: 'analyze' | 'translate' | 'explain' } | undefined;
   return p?.snapshot ? p : undefined;
 }
 
@@ -101,7 +105,11 @@ function grabSelectionInPage(): {
   if (!raw) return {};
 
   let container: Node = document.body;
-  for (let node: Node | null = range.commonAncestorContainer; node && node !== document.body; node = node.parentNode) {
+  for (
+    let node: Node | null = range.commonAncestorContainer;
+    node && node !== document.body;
+    node = node.parentNode
+  ) {
     const len = node.textContent?.length ?? 0;
     if (len > 0 && len <= 1500) {
       container = node;
@@ -199,7 +207,7 @@ chrome.commands.onCommand.addListener((command) => {
 
 // ---------- 消息路由 ----------
 
-async function handleMessage(msg: import('../shared/messages').Msg, sender: chrome.runtime.MessageSender): Promise<unknown> {
+async function handleMessage(msg: Msg, sender: chrome.runtime.MessageSender): Promise<unknown> {
   switch (msg.type) {
     case 'SELECTION_SNAPSHOT':
       await setPending(msg.snapshot, 'analyze');
@@ -226,8 +234,12 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
         const id = await startAnalysis(msg.snapshot, msg.mode);
         return { analysisId: id } satisfies StartResponse;
       } catch (err) {
-        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
-        return { error: code, errorMessage: err instanceof Error ? err.message : String(err) } satisfies StartResponse;
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        return {
+          error: code,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        } satisfies StartResponse;
       }
     }
 
@@ -236,8 +248,12 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
         const id = await startLight(msg.snapshot, msg.action as LightAction);
         return { analysisId: id } satisfies StartResponse;
       } catch (err) {
-        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
-        return { error: code, errorMessage: err instanceof Error ? err.message : String(err) } satisfies StartResponse;
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        return {
+          error: code,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        } satisfies StartResponse;
       }
     }
 
@@ -246,7 +262,8 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
         await setPendingArticle(msg.payload);
         await startArticleTranslate(msg.payload);
       } catch (err) {
-        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
         setArticleError(code);
       }
       await openPanel(sender.tab?.id);
@@ -264,9 +281,14 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
       try {
         await startFullPageTranslate(msg.payload, pushToTab, tabId);
       } catch (err) {
-        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
         if (typeof tabId === 'number') {
-          await pushToTab(tabId, { type: 'FULLPAGE_ERROR', errorCode: code, errorMessage: err instanceof Error ? err.message : undefined }).catch(() => undefined);
+          await pushToTab(tabId, {
+            type: 'FULLPAGE_ERROR',
+            errorCode: code,
+            errorMessage: err instanceof Error ? err.message : undefined,
+          }).catch(() => undefined);
         }
       }
       return { ok: true };
@@ -320,7 +342,8 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
         const questions = await practiceGenerate(msg.types, msg.count);
         return { questions };
       } catch (err) {
-        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
         return { error: code, errorMessage: err instanceof Error ? err.message : String(err) };
       }
     }
@@ -329,7 +352,8 @@ async function handleMessage(msg: import('../shared/messages').Msg, sender: chro
       try {
         return await practiceGrade(msg.session);
       } catch (err) {
-        const code = err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
         return { error: code, errorMessage: err instanceof Error ? err.message : String(err) };
       }
     }
@@ -349,7 +373,13 @@ chrome.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
   }
   void handleMessage(msg, sender)
     .then((resp) => sendResponse(resp))
-    .catch((err) => sendResponse({ ok: false, error: 'handler_error', errorMessage: err instanceof Error ? err.message : String(err) }));
+    .catch((err) =>
+      sendResponse({
+        ok: false,
+        error: 'handler_error',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      }),
+    );
   return true; // 异步响应
 });
 

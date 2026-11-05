@@ -75,7 +75,9 @@ function ConfigPanel() {
 
       {st.practiceError && <ErrorBox message={st.practiceError} />}
       {st.entries.length === 0 && (
-        <p className="text-[11px] text-amber-600 dark:text-amber-400">知识库还是空的——先去收藏几条内容，练习才有素材。</p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">
+          知识库还是空的——先去收藏几条内容，练习才有素材。
+        </p>
       )}
 
       <Btn
@@ -99,7 +101,12 @@ function QuizPanel() {
       ))}
       {st.practiceError && <ErrorBox message={st.practiceError} />}
       <div className="flex gap-2">
-        <Btn variant="primary" className="flex-1 py-2" disabled={st.practiceBusy === 'grading'} onClick={() => void st.submitPractice()}>
+        <Btn
+          variant="primary"
+          className="flex-1 py-2"
+          disabled={st.practiceBusy === 'grading'}
+          onClick={() => void st.submitPractice()}
+        >
           {st.practiceBusy === 'grading' ? '批改中…' : '交卷'}
         </Btn>
         <Btn onClick={st.resetPractice}>放弃</Btn>
@@ -181,9 +188,16 @@ function ResultPanel() {
       {st.practiceQuestions.map((q, i) => {
         const g = byId.get(q.id);
         return (
-          <div key={q.id} className="rounded-lg border border-ink-200 bg-white p-3 dark:border-ink-800 dark:bg-ink-900">
+          <div
+            key={q.id}
+            className="rounded-lg border border-ink-200 bg-white p-3 dark:border-ink-800 dark:bg-ink-900"
+          >
             <div className="flex items-center gap-1.5">
-              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${verdictStyle[g?.verdict ?? 'wrong']}`}>{verdictLabel[g?.verdict ?? 'wrong']}</span>
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${verdictStyle[g?.verdict ?? 'wrong']}`}
+              >
+                {verdictLabel[g?.verdict ?? 'wrong']}
+              </span>
               <span className="text-[10px] text-ink-400">
                 第 {i + 1} 题 · {QUESTION_TYPE_LABELS[q.type]}
               </span>
@@ -197,8 +211,16 @@ function ResultPanel() {
               <span className="text-ink-400">参考答案：</span>
               {q.answer}
             </p>
-            {g?.comment && <p className="mt-1.5 rounded-md bg-ink-50 p-1.5 text-[11.5px] leading-relaxed text-ink-600 dark:bg-ink-800/60 dark:text-ink-300">{g.comment}</p>}
-            {!g?.comment && <p className="mt-1 text-[11.5px] leading-relaxed text-ink-500 dark:text-ink-400">{q.explanation}</p>}
+            {g?.comment && (
+              <p className="mt-1.5 rounded-md bg-ink-50 p-1.5 text-[11.5px] leading-relaxed text-ink-600 dark:bg-ink-800/60 dark:text-ink-300">
+                {g.comment}
+              </p>
+            )}
+            {!g?.comment && (
+              <p className="mt-1 text-[11.5px] leading-relaxed text-ink-500 dark:text-ink-400">
+                {q.explanation}
+              </p>
+            )}
           </div>
         );
       })}
@@ -227,8 +249,18 @@ function HistorySection() {
       <div className="mb-1.5 text-[11px] font-semibold text-ink-400">练习记录</div>
       <div className="space-y-1">
         {sessions.map((s) => (
-          <div key={s.id} className="flex items-center gap-2 rounded-md bg-ink-100/60 px-2 py-1 text-[11px] dark:bg-ink-800/60">
-            <span className="text-ink-400 dark:text-ink-500">{new Date(s.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          <div
+            key={s.id}
+            className="flex items-center gap-2 rounded-md bg-ink-100/60 px-2 py-1 text-[11px] dark:bg-ink-800/60"
+          >
+            <span className="text-ink-400 dark:text-ink-500">
+              {new Date(s.createdAt).toLocaleString('zh-CN', {
+                month: 'numeric',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
             <span className="flex-1 truncate">{s.types.map((t) => QUESTION_TYPE_LABELS[t]).join('、')}</span>
             <span className="font-semibold text-accent-600 dark:text-accent-300">{s.score ?? '—'}分</span>
           </div>

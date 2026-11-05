@@ -24,7 +24,10 @@ export function AnalysisView() {
   const st = useStore();
 
   // 可用 Tab 计算（full 只在完整分析结果时存在）
-  const full = st.session?.result && 'detected_type' in st.session.result ? (st.session.result as AnalysisResult) : undefined;
+  const full =
+    st.session?.result && 'detected_type' in st.session.result
+      ? (st.session.result as AnalysisResult)
+      : undefined;
   const tabs = useMemo<TabKey[]>(() => {
     const out: TabKey[] = ['overview'];
     const has = (arr?: unknown[]) => !!arr && arr.length > 0;
@@ -45,7 +48,11 @@ export function AnalysisView() {
 
   return (
     <div className="flex h-full flex-col">
-      <OriginalHeader session={st.session} onReanalyze={() => void st.reAnalyze()} running={st.status === 'running' || st.status === 'streaming'} />
+      <OriginalHeader
+        session={st.session}
+        onReanalyze={() => void st.reAnalyze()}
+        running={st.status === 'running' || st.status === 'streaming'}
+      />
       <div className="border-b border-ink-200 px-3 dark:border-ink-800">
         <TabBar tabs={tabs} active={activeTab} onChange={st.setTab} session={st.session} />
       </div>
@@ -63,7 +70,11 @@ export function AnalysisView() {
             {st.status === 'error' && !st.session?.result && (
               <ErrorBox code={st.errorCode} message={st.errorMessage} onRetry={() => void st.reAnalyze()} />
             )}
-            <OverviewSection session={st.session} partial={st.partial} streaming={st.status === 'streaming'} />
+            <OverviewSection
+              session={st.session}
+              partial={st.partial}
+              streaming={st.status === 'streaming'}
+            />
           </>
         )}
         {activeTab === 'structure' && (
@@ -103,7 +114,10 @@ function OriginalHeader({
   running: boolean;
 }) {
   if (!session) return null;
-  const modeLabel = session.result && 'detected_type' in session.result ? MODE_LABELS[session.result.detected_type] : MODE_LABELS[session.guess];
+  const modeLabel =
+    session.result && 'detected_type' in session.result
+      ? MODE_LABELS[session.result.detected_type]
+      : MODE_LABELS[session.guess];
   return (
     <div className="border-b border-ink-200 px-3 pb-2 pt-3 dark:border-ink-800">
       <div className="flex items-start justify-between gap-2">
@@ -164,7 +178,9 @@ function TabBar({
         >
           {TAB_LABELS[t]}
           {t === 'chat' && (session?.chat.length ?? 0) > 0 && (
-            <span className="ml-0.5 opacity-70">({session?.chat.filter((c) => c.role === 'user').length})</span>
+            <span className="ml-0.5 opacity-70">
+              ({session?.chat.filter((c) => c.role === 'user').length})
+            </span>
           )}
         </button>
       ))}

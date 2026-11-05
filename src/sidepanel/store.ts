@@ -121,7 +121,11 @@ export interface PanelState {
   applyTheme(): void;
   acknowledgePrivacy(): Promise<void>;
 
-  startFromSnapshot(snapshot: Snapshot, action: 'analyze' | 'translate' | 'explain', mode?: Mode): Promise<void>;
+  startFromSnapshot(
+    snapshot: Snapshot,
+    action: 'analyze' | 'translate' | 'explain',
+    mode?: Mode,
+  ): Promise<void>;
   analyzeManualText(): Promise<void>;
   setManualOpen(v: boolean): void;
   setManualText(v: string): void;
@@ -155,7 +159,7 @@ export const useStore = create<PanelState>()((set, get) => {
   // ---------- Port 接线 ----------
 
   let port: chrome.runtime.Port | null = null;
-  let disposed = false;
+  const disposed = false;
 
   function handlePortMsg(msg: PortSwMsg): void {
     const st = get();
@@ -172,7 +176,14 @@ export const useStore = create<PanelState>()((set, get) => {
       const art = get().article;
       const results = { ...art.results };
       for (const it of msg.items) results[it.id] = it.natural;
-      set({ article: { ...art, results, doneBatches: Math.max(art.doneBatches, msg.index + 1), totalBatches: msg.total } });
+      set({
+        article: {
+          ...art,
+          results,
+          doneBatches: Math.max(art.doneBatches, msg.index + 1),
+          totalBatches: msg.total,
+        },
+      });
       return;
     }
     if (msg.type === 'chunk') {
@@ -205,7 +216,10 @@ export const useStore = create<PanelState>()((set, get) => {
         if (!msg.ok) {
           if (st.session) {
             set({
-              session: { ...st.session, chat: markChatError(st.session.chat, msg.errorMessage ?? '生成失败') },
+              session: {
+                ...st.session,
+                chat: markChatError(st.session.chat, msg.errorMessage ?? '生成失败'),
+              },
               chatStreaming: false,
             });
           }
@@ -326,14 +340,14 @@ export const useStore = create<PanelState>()((set, get) => {
     practiceBusy: null,
     practiceError: null,
 
-  article: {
-    phase: 'idle',
-    payload: null,
-    results: {},
-    totalBatches: 0,
-    doneBatches: 0,
-    cacheInfo: undefined,
-  },
+    article: {
+      phase: 'idle',
+      payload: null,
+      results: {},
+      totalBatches: 0,
+      doneBatches: 0,
+      cacheInfo: undefined,
+    },
 
     beginArticle(payload) {
       set({
@@ -453,7 +467,11 @@ export const useStore = create<PanelState>()((set, get) => {
         }
         set({ currentId: res.analysisId ?? null });
       } catch (err) {
-        set({ status: 'error', errorCode: 'unknown', errorMessage: err instanceof Error ? err.message : String(err) });
+        set({
+          status: 'error',
+          errorCode: 'unknown',
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
       }
     },
 
@@ -513,7 +531,9 @@ export const useStore = create<PanelState>()((set, get) => {
       if (!s) return;
       const entry: Entry = {
         id: newId(),
-        type: (s.result && 'detected_type' in s.result ? s.result.detected_type : guessMode(s.text)) as EntryType,
+        type: (s.result && 'detected_type' in s.result
+          ? s.result.detected_type
+          : guessMode(s.text)) as EntryType,
         text: s.text,
         analysis: s.result ?? null,
         note: '',
@@ -530,11 +550,17 @@ export const useStore = create<PanelState>()((set, get) => {
     async followUp(question) {
       const s = get().session;
       if (!s || !question.trim()) return;
-      const ctx = s.result ? { snapshot: s.snapshot, analysis: s.result as AnalysisResult | LightResult } : undefined;
+      const ctx = s.result
+        ? { snapshot: s.snapshot, analysis: s.result as AnalysisResult | LightResult }
+        : undefined;
       set({
         session: {
           ...s,
-          chat: [...s.chat, { role: 'user', content: question }, { role: 'assistant', content: '', streaming: true }],
+          chat: [
+            ...s.chat,
+            { role: 'user', content: question },
+            { role: 'assistant', content: '', streaming: true },
+          ],
         },
         chatStreaming: true,
         tab: 'chat',
@@ -543,7 +569,8 @@ export const useStore = create<PanelState>()((set, get) => {
     },
 
     async openEntry(entryId) {
-      const entry = get().entries.find((e) => e.id === entryId) ?? (await listEntriesRaw()).find((e) => e.id === entryId);
+      const entry =
+        get().entries.find((e) => e.id === entryId) ?? (await listEntriesRaw()).find((e) => e.id === entryId);
       if (!entry) return;
       const view: SessionView = {
         id: entry.id,

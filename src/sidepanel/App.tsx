@@ -15,7 +15,6 @@ export default function App() {
 
   useEffect(() => {
     void st.init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const needsPrivacy = st.ready && !st.settings.privacyAcknowledgedAt;
@@ -48,7 +47,9 @@ function Header() {
       type="button"
       onClick={() => st.setView(key)}
       className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-        st.view === key ? 'bg-accent-600 text-white' : 'text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-ink-800'
+        st.view === key
+          ? 'bg-accent-600 text-white'
+          : 'text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-ink-800'
       }`}
     >
       {label}
@@ -84,10 +85,16 @@ function PrivacyCard() {
         <h2 className="text-sm font-bold">欢迎使用 LinguaLens</h2>
         <div className="mt-2 space-y-1.5 text-[11.5px] leading-relaxed text-ink-600 dark:text-ink-300">
           <p>开始前请了解数据流向：</p>
-          <p>1. 选中分析时，仅发送<b>选中的文本、其前后约 300 字上下文、页面标题与网址</b>给模型服务。</p>
-          <p>2. API 密钥经 <b>AES-256-GCM 加密</b>后保存在本机浏览器内，不会上传到任何第三方。</p>
+          <p>
+            1. 选中分析时，仅发送<b>选中的文本、其前后约 300 字上下文、页面标题与网址</b>给模型服务。
+          </p>
+          <p>
+            2. API 密钥经 <b>AES-256-GCM 加密</b>后保存在本机浏览器内，不会上传到任何第三方。
+          </p>
           <p>3. 收藏、笔记、练习记录全部存在本地 IndexedDB，可随时导出或清除。</p>
-          <p className="text-ink-400 dark:text-ink-500">注：本地加密可防密钥明文泄露；若设备本身已被控制则无法防御。公开发布版建议改用服务端代理。</p>
+          <p className="text-ink-400 dark:text-ink-500">
+            注：本地加密可防密钥明文泄露；若设备本身已被控制则无法防御。公开发布版建议改用服务端代理。
+          </p>
         </div>
         <Btn variant="primary" className="mt-3 w-full py-2" onClick={() => void st.acknowledgePrivacy()}>
           我已了解，开始使用

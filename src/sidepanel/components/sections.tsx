@@ -77,7 +77,10 @@ export function OverviewSection({
   return (
     <div className="space-y-2.5">
       {t && (t.literal || t.natural) && (
-        <SectionCard title="翻译" right={<CopyBtn text={[t.literal, t.natural].filter(Boolean).join('\n')} />}>
+        <SectionCard
+          title="翻译"
+          right={<CopyBtn text={[t.literal, t.natural].filter(Boolean).join('\n')} />}
+        >
           {t.literal && (
             <div className="mb-2">
               <div className="text-[11px] text-ink-400 dark:text-ink-500">结构直译 · 保留英文骨架</div>
@@ -121,7 +124,10 @@ export function ChunksSection({ chunks }: { chunks?: SenseChunk[] }) {
   return (
     <div className="space-y-2">
       {chunks.map((c, i) => (
-        <div key={i} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+        <div
+          key={i}
+          className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+        >
           <div className="flex items-start gap-2">
             <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-100 text-[11px] font-semibold text-accent-700 dark:bg-accent-700/30 dark:text-accent-200">
               {i + 1}
@@ -158,12 +164,21 @@ export function StructureSection({ structure }: { structure?: StructureItem[] })
     <div className="space-y-2">
       {structure.map((s, i) => {
         const colorKey = Object.keys(COMPONENT_COLORS).find((k) => s.component.includes(k));
-        const color = colorKey ? COMPONENT_COLORS[colorKey] : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300';
+        const color = colorKey
+          ? COMPONENT_COLORS[colorKey]
+          : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300';
         return (
-          <div key={i} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+          <div
+            key={i}
+            className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+          >
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${color}`}>{s.component}</span>
-              <code className="rounded bg-ink-50 px-1.5 py-0.5 text-[12.5px] text-ink-800 dark:bg-ink-800 dark:text-ink-200">{s.text}</code>
+              <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${color}`}>
+                {s.component}
+              </span>
+              <code className="rounded bg-ink-50 px-1.5 py-0.5 text-[12.5px] text-ink-800 dark:bg-ink-800 dark:text-ink-200">
+                {s.text}
+              </code>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-600 dark:text-ink-300">{s.explanation}</p>
           </div>
@@ -175,17 +190,34 @@ export function StructureSection({ structure }: { structure?: StructureItem[] })
 
 // ---------- 语法 ----------
 
-export function GrammarSection({ points }: { points?: { title: string; quote?: string; explanation: string; alternative?: string; kind?: 'rule' | 'habit' | 'style' }[] }) {
+export function GrammarSection({
+  points,
+}: {
+  points?: {
+    title: string;
+    quote?: string;
+    explanation: string;
+    alternative?: string;
+    kind?: 'rule' | 'habit' | 'style';
+  }[];
+}) {
   if (!points?.length) return <Empty>本模式不提供语法解析</Empty>;
   return (
     <div className="space-y-2">
       {points.map((g, i) => (
-        <div key={i} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+        <div
+          key={i}
+          className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+        >
           <div className="flex items-center">
             <h4 className="text-[13px] font-semibold">{g.title}</h4>
             <KindBadge kind={g.kind} />
           </div>
-          {g.quote && <code className="mt-1 inline-block rounded bg-ink-50 px-1.5 py-0.5 text-[12px] text-accent-700 dark:bg-ink-800 dark:text-accent-200">{g.quote}</code>}
+          {g.quote && (
+            <code className="mt-1 inline-block rounded bg-ink-50 px-1.5 py-0.5 text-[12px] text-accent-700 dark:bg-ink-800 dark:text-accent-200">
+              {g.quote}
+            </code>
+          )}
           <p className="mt-1.5 text-xs leading-relaxed text-ink-600 dark:text-ink-300">{g.explanation}</p>
           {g.alternative && (
             <p className="mt-1.5 rounded-md bg-ink-50 p-1.5 text-[11px] text-ink-500 dark:bg-ink-800/60 dark:text-ink-400">
@@ -221,20 +253,29 @@ function VocabList({ cards }: { cards: NonNullable<AnalysisResult['vocabulary']>
   return (
     <div className="space-y-2">
       {cards.map((v, i) => (
-        <div key={i} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+        <div
+          key={i}
+          className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+        >
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="text-[13.5px] font-semibold text-accent-700 dark:text-accent-200">{v.word}</span>
             {v.pos && <span className="text-[11px] italic text-ink-400">{v.pos}</span>}
           </div>
           <p className="mt-1 text-xs leading-relaxed">{v.context_meaning}</p>
           {v.morphology && (
-            <p className="mt-1.5 rounded-md bg-ink-50 p-1.5 text-[11px] text-ink-500 dark:bg-ink-800/60 dark:text-ink-400">构词：{v.morphology}</p>
+            <p className="mt-1.5 rounded-md bg-ink-50 p-1.5 text-[11px] text-ink-500 dark:bg-ink-800/60 dark:text-ink-400">
+              构词：{v.morphology}
+            </p>
           )}
           {v.collocations && v.collocations.length > 0 && (
-            <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">搭配：{v.collocations.join(' · ')}</p>
+            <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">
+              搭配：{v.collocations.join(' · ')}
+            </p>
           )}
           {v.synonym_diff && (
-            <p className="mt-1 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">近义辨析：{v.synonym_diff}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+              近义辨析：{v.synonym_diff}
+            </p>
           )}
         </div>
       ))}
@@ -253,7 +294,11 @@ export function WordInfoCard({ w }: { w: NonNullable<LightResult['word_info']> }
         <span className="text-lg font-bold text-accent-700 dark:text-accent-200">{w.word}</span>
         {w.ipa_us && <span className="font-mono text-xs text-ink-500">US {w.ipa_us}</span>}
         {w.ipa_uk && <span className="font-mono text-xs text-ink-500">UK {w.ipa_uk}</span>}
-        {w.pos && <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-500 dark:bg-ink-800 dark:text-ink-400">{w.pos}</span>}
+        {w.pos && (
+          <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-500 dark:bg-ink-800 dark:text-ink-400">
+            {w.pos}
+          </span>
+        )}
       </div>
 
       {w.core_meanings.length > 0 && (
@@ -276,7 +321,11 @@ export function WordInfoCard({ w }: { w: NonNullable<LightResult['word_info']> }
       {w.derivatives && w.derivatives.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {w.derivatives.map((d, i) => (
-            <span key={i} className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] dark:bg-ink-800" title={d.meaning}>
+            <span
+              key={i}
+              className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] dark:bg-ink-800"
+              title={d.meaning}
+            >
               {d.word}
             </span>
           ))}
@@ -303,7 +352,10 @@ export function WordInfoCard({ w }: { w: NonNullable<LightResult['word_info']> }
           <div className="text-[11px] text-ink-400 dark:text-ink-500">例句</div>
           <ul className="mt-1 space-y-1">
             {usage.examples.map((ex, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-xs leading-relaxed text-ink-600 dark:text-ink-300">
+              <li
+                key={i}
+                className="flex items-start gap-1.5 text-xs leading-relaxed text-ink-600 dark:text-ink-300"
+              >
                 <span className="text-ink-300 dark:text-ink-600">·</span>
                 <span>{ex}</span>
               </li>
@@ -335,13 +387,18 @@ export function CollocationsSection({ session }: { session: SessionView | null }
   return (
     <div className="space-y-2">
       {cols.map((c, i) => (
-        <div key={i} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+        <div
+          key={i}
+          className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+        >
           <div className="flex items-center flex-wrap">
             <span className="text-[13px] font-semibold text-accent-700 dark:text-accent-200">{c.phrase}</span>
             <KindBadge kind={c.kind} />
           </div>
           <p className="mt-1 text-xs leading-relaxed">{c.meaning}</p>
-          {c.usage_note && <p className="mt-1 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">{c.usage_note}</p>}
+          {c.usage_note && (
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">{c.usage_note}</p>
+          )}
           {c.examples && c.examples.length > 0 && (
             <ul className="mt-1.5 space-y-1 border-t border-ink-100 pt-1.5 dark:border-ink-800">
               {c.examples.map((ex, j) => (
@@ -366,7 +423,10 @@ export function ExpressionSection({ session }: { session: SessionView | null }) 
   return (
     <div className="space-y-2">
       {exprs.map((e, i) => (
-        <div key={i} className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900">
+        <div
+          key={i}
+          className="rounded-lg border border-ink-200 bg-white p-2.5 dark:border-ink-800 dark:bg-ink-900"
+        >
           <div className="flex items-center">
             <h4 className="text-[13px] font-semibold">{e.title}</h4>
             <KindBadge kind={e.kind} />
@@ -426,7 +486,10 @@ export function ChatPanel({
       <div ref={scrollRef} className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
         {chat.length === 0 && (
           <div className="rounded-lg border border-dashed border-ink-300 p-3 dark:border-ink-700">
-            <p className="text-xs text-ink-400 dark:text-ink-500">围绕这句「{originalText.slice(0, 40)}{originalText.length > 40 ? '…' : ''}」继续追问：</p>
+            <p className="text-xs text-ink-400 dark:text-ink-500">
+              围绕这句「{originalText.slice(0, 40)}
+              {originalText.length > 40 ? '…' : ''}」继续追问：
+            </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {QUICK_QUESTIONS.map((q) => (
                 <Chip key={q} onClick={() => onSend(q)}>
@@ -438,10 +501,22 @@ export function ChatPanel({
         )}
         {chat.map((m, i) =>
           m.role === 'user' ? (
-            <div key={i} className="ml-6 rounded-lg rounded-br-sm bg-accent-600 px-2.5 py-1.5 text-xs text-white">{m.content}</div>
+            <div
+              key={i}
+              className="ml-6 rounded-lg rounded-br-sm bg-accent-600 px-2.5 py-1.5 text-xs text-white"
+            >
+              {m.content}
+            </div>
           ) : (
-            <div key={i} className="rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 dark:border-ink-800 dark:bg-ink-900">
-              {m.content ? <Markdown text={m.content} className="text-xs" /> : streaming && i === chat.length - 1 ? <Spinner label="思考中…" /> : null}
+            <div
+              key={i}
+              className="rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 dark:border-ink-800 dark:bg-ink-900"
+            >
+              {m.content ? (
+                <Markdown text={m.content} className="text-xs" />
+              ) : streaming && i === chat.length - 1 ? (
+                <Spinner label="思考中…" />
+              ) : null}
               {m.error && <p className="mt-1 text-[11px] text-red-500">{m.error}</p>}
               {m.content && !m.streaming && (
                 <div className="mt-1 flex justify-end">

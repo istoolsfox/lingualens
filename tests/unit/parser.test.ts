@@ -50,12 +50,18 @@ describe('parseAnalysis 归一化', () => {
   });
 
   it('缺字段容错（无 chunks/structure 不炸）', () => {
-    const r = parseAnalysis('{"detected_type":"word","summary":"x","word_info":{"word":"likely","pos":"adv.","core_meanings":["可能"],"context_meaning":"很可能"}}', 'likely');
+    const r = parseAnalysis(
+      '{"detected_type":"word","summary":"x","word_info":{"word":"likely","pos":"adv.","core_meanings":["可能"],"context_meaning":"很可能"}}',
+      'likely',
+    );
     expect(r.ok).toBe(true);
   });
 
   it('非法 detected_type 回落到启发式', () => {
-    const r = parseAnalysis('{"detected_type":"alien","summary":"x","translation":{"literal":"a","natural":"b"}}', 'Do it.');
+    const r = parseAnalysis(
+      '{"detected_type":"alien","summary":"x","translation":{"literal":"a","natural":"b"}}',
+      'Do it.',
+    );
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.data.detected_type).toBe('sentence');
   });
@@ -75,7 +81,11 @@ describe('parseLight', () => {
   });
 
   it('explain 模式必须有 summary', () => {
-    const ok = parseLight('{"summary":"解释内容","expression":[{"title":"t","en_side":"e","cn_side":"c"}]}', 'explain', 'x');
+    const ok = parseLight(
+      '{"summary":"解释内容","expression":[{"title":"t","en_side":"e","cn_side":"c"}]}',
+      'explain',
+      'x',
+    );
     expect(ok.ok).toBe(true);
     if (ok.ok) expect(ok.data.expression?.[0]?.title).toBe('t');
     const bad = parseLight('{"expression":[]}', 'explain', 'x');

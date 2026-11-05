@@ -19,7 +19,9 @@ describe('guessMode 模式路由启发式', () => {
     expect(guessMode('A computer on steroids.')).toBe('sentence');
     expect(guessMode('Do it.')).toBe('sentence');
     expect(
-      guessMode('The problem is the scammers only need to get through to a very small percentage of people to make their money back.'),
+      guessMode(
+        'The problem is the scammers only need to get through to a very small percentage of people to make their money back.',
+      ),
     ).toBe('sentence');
   });
 
@@ -34,6 +36,10 @@ describe('guessMode 模式路由启发式', () => {
   });
 
   it('真实案例：spec 案例 1 是句子', () => {
-    expect(guessMode('Whenever you watch a video on YouTube now, you will likely get an advert for a scammy product.')).toBe('sentence');
+    expect(
+      guessMode(
+        'Whenever you watch a video on YouTube now, you will likely get an advert for a scammy product.',
+      ),
+    ).toBe('sentence');
   });
 });

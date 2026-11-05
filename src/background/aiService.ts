@@ -239,11 +239,23 @@ export async function startAnalysis(snapshot: Snapshot, manual?: Mode): Promise<
       if (err instanceof AiError) {
         session.errorCode = err.code;
         session.errorMessage = err.message;
-        broadcast({ type: 'done', channel: channels.analysis(id), ok: false, errorCode: err.code, errorMessage: err.message });
+        broadcast({
+          type: 'done',
+          channel: channels.analysis(id),
+          ok: false,
+          errorCode: err.code,
+          errorMessage: err.message,
+        });
       } else {
         session.errorCode = 'unknown';
         session.errorMessage = err instanceof Error ? err.message : String(err);
-        broadcast({ type: 'done', channel: channels.analysis(id), ok: false, errorCode: 'unknown', errorMessage: session.errorMessage });
+        broadcast({
+          type: 'done',
+          channel: channels.analysis(id),
+          ok: false,
+          errorCode: 'unknown',
+          errorMessage: session.errorMessage,
+        });
       }
     } finally {
       persistSoon();
@@ -319,7 +331,13 @@ export async function startLight(snapshot: Snapshot, action: LightAction): Promi
       const msg = err instanceof Error ? err.message : String(err);
       session.errorCode = code;
       session.errorMessage = msg;
-      broadcast({ type: 'done', channel: channels.analysis(id), ok: false, errorCode: code, errorMessage: msg });
+      broadcast({
+        type: 'done',
+        channel: channels.analysis(id),
+        ok: false,
+        errorCode: code,
+        errorMessage: msg,
+      });
     } finally {
       persistSoon();
     }
@@ -414,29 +432,27 @@ export function cancelFollowUp(id: string): void {
 export async function practiceGenerate(types: string[], count: number): Promise<Question[]> {
   const { cfg } = await resolveEndpoint();
   const all = await listEntriesRaw();
-  const preview = all
-    .slice(0, Math.max(count * 3, 12))
-    .map((e) => ({
-      text: e.text,
-      type: e.type,
-      context_meaning: e.analysis && 'summary' in e.analysis ? e.analysis.summary : undefined,
-      word_info:
-        e.analysis && 'word_info' in e.analysis && e.analysis.word_info
-          ? {
-              context_meaning: e.analysis.word_info.context_meaning,
-              morphology: e.analysis.word_info.morphology,
-            }
-          : undefined,
-      collocations:
-        e.analysis && 'collocations' in e.analysis
-          ? e.analysis.collocations?.map((c) => `${c.phrase}: ${c.meaning}`)
-          : undefined,
-      grammar_titles:
-        e.analysis && 'grammar_points' in e.analysis
-          ? e.analysis.grammar_points?.map((g) => g.title)
-          : undefined,
-      note: e.note || undefined,
-    }));
+  const preview = all.slice(0, Math.max(count * 3, 12)).map((e) => ({
+    text: e.text,
+    type: e.type,
+    context_meaning: e.analysis && 'summary' in e.analysis ? e.analysis.summary : undefined,
+    word_info:
+      e.analysis && 'word_info' in e.analysis && e.analysis.word_info
+        ? {
+            context_meaning: e.analysis.word_info.context_meaning,
+            morphology: e.analysis.word_info.morphology,
+          }
+        : undefined,
+    collocations:
+      e.analysis && 'collocations' in e.analysis
+        ? e.analysis.collocations?.map((c) => `${c.phrase}: ${c.meaning}`)
+        : undefined,
+    grammar_titles:
+      e.analysis && 'grammar_points' in e.analysis
+        ? e.analysis.grammar_points?.map((g) => g.title)
+        : undefined,
+    note: e.note || undefined,
+  }));
   const previewJson = JSON.stringify(preview).slice(0, 6000);
 
   const prompt = buildPracticeGeneratePrompt(previewJson, types, count);
@@ -454,7 +470,10 @@ export async function practiceGenerate(types: string[], count: number): Promise<
   return questions.filter((q) => q && typeof q.prompt === 'string' && typeof q.answer === 'string');
 }
 
-export async function practiceGrade(session: PracticeSession): Promise<{ gradings: { questionId: string; verdict: string; comment: string }[]; overall_comment?: string }> {
+export async function practiceGrade(session: PracticeSession): Promise<{
+  gradings: { questionId: string; verdict: string; comment: string }[];
+  overall_comment?: string;
+}> {
   const { cfg } = await resolveEndpoint();
   const subjective = session.questions.filter(
     (q) => q.type === 'translation' || q.type === 'imitation' || q.type === 'correction',
@@ -542,7 +561,12 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
     articleState.totalBatches = 1;
     delete articleState.errorCode;
     await articleCachePut(buildArticleCacheRow(payload, fingerprint, reusedMap));
-    broadcast({ type: 'done', channel: 'article', ok: true, payload: { cached: false, reused: reused.length, fresh: 0 } });
+    broadcast({
+      type: 'done',
+      channel: 'article',
+      ok: true,
+      payload: { cached: false, reused: reused.length, fresh: 0 },
+    });
     return;
   }
 
@@ -570,15 +594,22 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
           signal: controller.signal,
         });
         const obj = extractJsonObject(acc) as { items?: { id?: unknown; natural?: unknown }[] } | undefined;
-        const items = (Array.isArray(obj?.items) ? obj.items : [])
-          .filter((it): it is { id: number; natural: string } => typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0);
+        const items = (Array.isArray(obj?.items) ? obj.items : []).filter(
+          (it): it is { id: number; natural: string } =>
+            typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
+        );
         if (items.length === 0) throw new AiError('parse', '某一批翻译返回无法解析，整体中止');
         for (const it of items) {
           articleState.results[it.id] = it.natural;
         }
         articleState.doneBatches++;
         broadcast({ type: 'article_batch', index: batch.index, total: batch.total, items });
-        await memoSave(items.map((it) => ({ text: batch.blocks.find((b) => b.id === it.id)?.text ?? '', natural: it.natural })));
+        await memoSave(
+          items.map((it) => ({
+            text: batch.blocks.find((b) => b.id === it.id)?.text ?? '',
+            natural: it.natural,
+          })),
+        );
       }
       articleState.running = false;
       await articleCachePut(buildArticleCacheRow(payload, fingerprint, articleState.results));
@@ -666,17 +697,23 @@ export async function startFullPageTranslate(
           signal: controller.signal,
         });
         const obj = extractJsonObject(acc) as
-          | { items?: { id?: unknown; natural?: unknown }[]; highlights?: { id?: unknown; expr?: unknown; why?: unknown }[] }
+          | {
+              items?: { id?: unknown; natural?: unknown }[];
+              highlights?: { id?: unknown; expr?: unknown; why?: unknown }[];
+            }
           | undefined;
-        const items = (Array.isArray(obj?.items) ? obj.items : [])
-          .filter((it): it is { id: number; natural: string } => typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0);
+        const items = (Array.isArray(obj?.items) ? obj.items : []).filter(
+          (it): it is { id: number; natural: string } =>
+            typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
+        );
         if (items.length === 0) throw new AiError('parse', '某一批全文翻译返回无法解析，整体中止');
 
         // 讲解点：expr 必须是对应单元文本的子串，做防御校验
         const textById = new Map(batch.blocks.map((b) => [b.id, b.text]));
         const highlights = (Array.isArray(obj?.highlights) ? obj.highlights : [])
           .filter((h): h is FullPageHighlight => {
-            if (typeof h?.id !== 'number' || typeof h?.expr !== 'string' || typeof h?.why !== 'string') return false;
+            if (typeof h?.id !== 'number' || typeof h?.expr !== 'string' || typeof h?.why !== 'string')
+              return false;
             if (h.expr.length < 2 || h.expr.length > 60 || h.why.length < 2) return false;
             const unitText = textById.get(h.id);
             return !!unitText && unitText.includes(h.expr);
@@ -684,13 +721,33 @@ export async function startFullPageTranslate(
           .slice(0, 4);
         highlightCount += highlights.length;
 
-        await push({ type: 'FULLPAGE_BATCH', index: batch.index + 1, total: batches.length, items, highlights });
-        await memoSave(items.map((it) => ({ text: batch.blocks.find((b) => b.id === it.id)?.text ?? '', natural: it.natural })));
+        await push({
+          type: 'FULLPAGE_BATCH',
+          index: batch.index + 1,
+          total: batches.length,
+          items,
+          highlights,
+        });
+        await memoSave(
+          items.map((it) => ({
+            text: batch.blocks.find((b) => b.id === it.id)?.text ?? '',
+            natural: it.natural,
+          })),
+        );
       }
-      await push({ type: 'FULLPAGE_DONE', translated: reused.length + pending.length, highlights: highlightCount, reused: reused.length });
+      await push({
+        type: 'FULLPAGE_DONE',
+        translated: reused.length + pending.length,
+        highlights: highlightCount,
+        reused: reused.length,
+      });
     } catch (err) {
       const code = err instanceof AiError ? err.code : 'unknown';
-      await push({ type: 'FULLPAGE_ERROR', errorCode: code, errorMessage: err instanceof Error ? err.message : undefined });
+      await push({
+        type: 'FULLPAGE_ERROR',
+        errorCode: code,
+        errorMessage: err instanceof Error ? err.message : undefined,
+      });
     }
   })();
 }

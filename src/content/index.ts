@@ -54,7 +54,11 @@ function hasLatin(s: string): boolean {
 /** 从选区向上找一个"合适大小"的祖先容器，取其文本作为上下文 */
 function captureContext(range: Range): { before: string; after: string } {
   let container: Node = document.body;
-  for (let node: Node | null = range.commonAncestorContainer; node && node !== document.body; node = node.parentNode) {
+  for (
+    let node: Node | null = range.commonAncestorContainer;
+    node && node !== document.body;
+    node = node.parentNode
+  ) {
     const len = node.textContent?.length ?? 0;
     if (len > 0 && len <= 1500) {
       container = node;
@@ -157,11 +161,13 @@ function onBarClick(e: Event): void {
     void toggleFullPage();
     return;
   }
-  void chrome.runtime.sendMessage({
-    type: 'TOOLBAR_ACTION',
-    snapshot,
-    action: act,
-  }).catch(() => undefined);
+  void chrome.runtime
+    .sendMessage({
+      type: 'TOOLBAR_ACTION',
+      snapshot,
+      action: act,
+    })
+    .catch(() => undefined);
   hideBar();
 }
 
@@ -197,30 +203,34 @@ function hideBar(): void {
 
 let mouseUpSeq = 0;
 
-document.addEventListener('mouseup', (e: MouseEvent) => {
-  // 点击浮动栏自身不处理
-  const path = e.composedPath();
-  if (host && path.includes(host)) return;
-  clearTimeout(hideTimer);
-  const seq = ++mouseUpSeq;
-  hideTimer = setTimeout(async () => {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-      hideBar();
-      return;
-    }
-    const { on } = await getBarSettings();
-    if (!on) return;
-    // 用户在延迟期间又按下了鼠标 → 放弃本轮
-    if (seq !== mouseUpSeq) return;
-    const snapshot = buildSnapshot(sel.getRangeAt(0), 'floating-bar');
-    if (!snapshot) {
-      hideBar();
-      return;
-    }
-    showBar(snapshot);
-  }, 10);
-}, true);
+document.addEventListener(
+  'mouseup',
+  (e: MouseEvent) => {
+    // 点击浮动栏自身不处理
+    const path = e.composedPath();
+    if (host && path.includes(host)) return;
+    clearTimeout(hideTimer);
+    const seq = ++mouseUpSeq;
+    hideTimer = setTimeout(async () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        hideBar();
+        return;
+      }
+      const { on } = await getBarSettings();
+      if (!on) return;
+      // 用户在延迟期间又按下了鼠标 → 放弃本轮
+      if (seq !== mouseUpSeq) return;
+      const snapshot = buildSnapshot(sel.getRangeAt(0), 'floating-bar');
+      if (!snapshot) {
+        hideBar();
+        return;
+      }
+      showBar(snapshot);
+    }, 10);
+  },
+  true,
+);
 
 document.addEventListener('selectionchange', () => {
   const sel = window.getSelection();

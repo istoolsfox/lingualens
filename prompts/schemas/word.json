@@ -24,12 +24,20 @@
         "inflections": { "type": "array", "items": { "type": "string" } },
         "derivatives": {
           "type": "array",
-          "items": { "type": "object", "properties": { "word": { "type": "string" }, "meaning": { "type": "string" } }, "required": ["word", "meaning"] }
+          "items": {
+            "type": "object",
+            "properties": { "word": { "type": "string" }, "meaning": { "type": "string" } },
+            "required": ["word", "meaning"]
+          }
         },
         "grammar_role": { "type": "string", "description": "句中语法作用：修饰谁/为什么这个位置/能否替换" },
         "compare": {
           "type": "array",
-          "items": { "type": "object", "properties": { "expression": { "type": "string" }, "difference": { "type": "string" } }, "required": ["expression", "difference"] }
+          "items": {
+            "type": "object",
+            "properties": { "expression": { "type": "string" }, "difference": { "type": "string" } },
+            "required": ["expression", "difference"]
+          }
         },
         "usage": {
           "type": "object",

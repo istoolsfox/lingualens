@@ -49,7 +49,7 @@ let dbPromise: Promise<IDBPDatabase<LLDatabases>> | null = null;
 function db(): Promise<IDBPDatabase<LLDatabases>> {
   if (!dbPromise) {
     dbPromise = openDB<LLDatabases>(DB_NAME, DB_VERSION, {
-      upgrade(d, _oldVersion, _oldVn, tx) {
+      upgrade(d) {
         if (!d.objectStoreNames.contains(STORE_ENTRIES)) {
           d.createObjectStore(STORE_ENTRIES, { keyPath: 'id' });
         }
@@ -68,7 +68,6 @@ function db(): Promise<IDBPDatabase<LLDatabases>> {
         if (!d.objectStoreNames.contains(STORE_HANDLES)) {
           d.createObjectStore(STORE_HANDLES, { keyPath: 'name' });
         }
-        void tx;
       },
     });
   }
@@ -104,11 +103,6 @@ export async function deleteEntries(ids: string[]): Promise<void> {
   await Promise.all(ids.map((id) => tx.store.delete(id)));
   await tx.done;
   await recomputeTags();
-}
-
-export async function getEntry(id: string): Promise<Entry | undefined> {
-  const d = await db();
-  return d.get(STORE_ENTRIES, id);
 }
 
 export async function listEntriesRaw(): Promise<Entry[]> {
@@ -169,11 +163,6 @@ export async function listPracticeSessions(limit = 30): Promise<PracticeSession[
   const d = await db();
   const all = await d.getAll(STORE_PRACTICE);
   return all.sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
-}
-
-export async function deletePracticeSession(id: string): Promise<void> {
-  const d = await db();
-  await d.delete(STORE_PRACTICE, id);
 }
 
 // ---------- 备份 ----------
@@ -274,7 +263,12 @@ export async function memoSave(items: { text: string; natural: string }[]): Prom
   const tx = d.transaction(STORE_MEMO, 'readwrite');
   const now = Date.now();
   for (const it of items) {
-    await tx.store.put({ hash: textKey(it.text), text: it.text, natural: it.natural, updatedAt: now } satisfies MemoRow);
+    await tx.store.put({
+      hash: textKey(it.text),
+      text: it.text,
+      natural: it.natural,
+      updatedAt: now,
+    } satisfies MemoRow);
   }
   await tx.done;
 }
@@ -300,7 +294,11 @@ export async function articleCachePut(row: ArticleCacheRow): Promise<void> {
 }
 
 /** 由提取结果构造可缓存的行 */
-export function buildArticleCacheRow(payload: ArticlePayload, fingerprint: string, translations: Record<number, string>): ArticleCacheRow {
+export function buildArticleCacheRow(
+  payload: ArticlePayload,
+  fingerprint: string,
+  translations: Record<number, string>,
+): ArticleCacheRow {
   return {
     url: payload.url,
     fingerprint,

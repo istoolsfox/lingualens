@@ -5,7 +5,14 @@
 
 import { APP_VERSION } from '../shared/constants';
 import type { BackupFile } from '../shared/types';
-import { exportBackup, importBackup, getDirHandle, saveDirHandle, clearDirHandle, type ImportReport } from './favorites';
+import {
+  exportBackup,
+  importBackup,
+  getDirHandle,
+  saveDirHandle,
+  clearDirHandle,
+  type ImportReport,
+} from './favorites';
 
 const DIR_HANDLE_NAME = 'backup';
 const BACKUP_FILENAME = 'lingualens-backup.json';
@@ -49,7 +56,9 @@ export async function lastBackupAt(): Promise<number> {
 
 /** 弹出系统文件夹选择器，把句柄存本地（此后可写入该目录） */
 export async function pickBackupDir(): Promise<{ ok: boolean; name?: string; error?: string }> {
-  const w = window as unknown as { showDirectoryPicker?: (opts?: { id?: string; mode?: 'readwrite' }) => Promise<DirHandleWithPerms> };
+  const w = window as unknown as {
+    showDirectoryPicker?: (opts?: { id?: string; mode?: 'readwrite' }) => Promise<DirHandleWithPerms>;
+  };
   if (typeof w.showDirectoryPicker !== 'function') {
     return { ok: false, error: '当前浏览器不支持文件夹备份' };
   }

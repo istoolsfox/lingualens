@@ -13,7 +13,14 @@ import { getSettings, saveSettings } from '../storage/settings';
 import { clearApiKey, hasApiKey, loadApiKey, saveApiKey } from '../background/secureStore';
 import { chromeStorageLike } from '../background/storageLike';
 import { clearLibrary } from '../storage/favorites';
-import { isAutoBackupEnabled, lastBackupAt, pickBackupDir, removeBackupDir, setAutoBackupEnabled, syncBackupToDir } from '../storage/backup';
+import {
+  isAutoBackupEnabled,
+  lastBackupAt,
+  pickBackupDir,
+  removeBackupDir,
+  setAutoBackupEnabled,
+  syncBackupToDir,
+} from '../storage/backup';
 import { Btn } from '../sidepanel/components/bits';
 
 type TestState = { kind: 'idle' } | { kind: 'testing' } | { kind: 'ok' } | { kind: 'fail'; message: string };
@@ -28,7 +35,11 @@ export default function App() {
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
   const [recording, setRecording] = useState(false);
   const [isMac, setIsMac] = useState(false);
-  const [backup, setBackup] = useState<{ enabled: boolean; lastAt: number; msg: string }>({ enabled: false, lastAt: 0, msg: '' });
+  const [backup, setBackup] = useState<{ enabled: boolean; lastAt: number; msg: string }>({
+    enabled: false,
+    lastAt: 0,
+    msg: '',
+  });
   const skipAutosave = useRef(true);
 
   useEffect(() => {
@@ -55,7 +66,13 @@ export default function App() {
         setBackup((b) => ({ ...b, msg: '至少要带一个修饰键（Ctrl/Alt/⌘/Shift），避免和打字冲突' }));
         return;
       }
-      const combo: HotkeyCombo = { key: e.key.toUpperCase(), ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey, shift: e.shiftKey };
+      const combo: HotkeyCombo = {
+        key: e.key.toUpperCase(),
+        ctrl: e.ctrlKey,
+        alt: e.altKey,
+        meta: e.metaKey,
+        shift: e.shiftKey,
+      };
       setSettings((s) => ({ ...s, ui: { ...s.ui, hotkey: combo } }));
       setRecording(false);
     };
@@ -94,7 +111,10 @@ export default function App() {
     setProviderId(id);
     const p = PROVIDER_PRESETS.find((x) => x.id === id);
     if (!p) return;
-    const nextModel = p.models.length > 0 && !p.models.includes(settings.api.model) ? (p.models[0] ?? '') : settings.api.model;
+    const nextModel =
+      p.models.length > 0 && !p.models.includes(settings.api.model)
+        ? (p.models[0] ?? '')
+        : settings.api.model;
     update({
       api: {
         ...settings.api,
@@ -135,7 +155,10 @@ export default function App() {
       );
       setTest({ kind: 'ok' });
     } catch (err) {
-      setTest({ kind: 'fail', message: err instanceof AiError ? `${err.code}: ${err.message}` : String(err) });
+      setTest({
+        kind: 'fail',
+        message: err instanceof AiError ? `${err.code}: ${err.message}` : String(err),
+      });
     }
   };
 
@@ -165,7 +188,11 @@ export default function App() {
               }`}
             >
               <div className="font-semibold">{p.name}</div>
-              {p.note && <div className="mt-0.5 text-[10.5px] leading-snug text-ink-400 dark:text-ink-500">{p.note}</div>}
+              {p.note && (
+                <div className="mt-0.5 text-[10.5px] leading-snug text-ink-400 dark:text-ink-500">
+                  {p.note}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -187,7 +214,14 @@ export default function App() {
             密钥从这里拿：<span className="font-mono">{preset.keyHint}</span>
           </p>
         )}
-        <Field label="API 密钥" hint={hasKey ? '已加密保存 ✓（AES-256-GCM）。重新粘贴可覆盖。' : '密钥只存你自己电脑里，加密保存，不会上传。'}>
+        <Field
+          label="API 密钥"
+          hint={
+            hasKey
+              ? '已加密保存 ✓（AES-256-GCM）。重新粘贴可覆盖。'
+              : '密钥只存你自己电脑里，加密保存，不会上传。'
+          }
+        >
           <div className="flex gap-1.5">
             <input
               type={showKey ? 'text' : 'password'}
@@ -216,7 +250,12 @@ export default function App() {
       </Section>
 
       <Section title="第三步：选模型并测试">
-        <Field label="模型" hint={preset.models.length > 0 ? '点输入框可从常用模型里选，也可以自己改' : '填这个服务支持的模型名称'}>
+        <Field
+          label="模型"
+          hint={
+            preset.models.length > 0 ? '点输入框可从常用模型里选，也可以自己改' : '填这个服务支持的模型名称'
+          }
+        >
           <input
             value={settings.api.model}
             onChange={(e) => update({ api: { ...settings.api, model: e.target.value.trim() } })}
@@ -235,7 +274,11 @@ export default function App() {
             保存并测试连接
           </Btn>
           {test.kind === 'testing' && <span className="text-xs text-ink-400">测试中…</span>}
-          {test.kind === 'ok' && <span className="text-xs text-emerald-600 dark:text-emerald-400">连接成功 ✓ 可以去读英文了！</span>}
+          {test.kind === 'ok' && (
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">
+              连接成功 ✓ 可以去读英文了！
+            </span>
+          )}
           {test.kind === 'fail' && <span className="text-xs text-red-500">{test.message}</span>}
         </div>
       </Section>
@@ -250,7 +293,9 @@ export default function App() {
                 </kbd>
                 　翻译本文：智能提取正文，侧边栏逐段双语对照
               </p>
-              <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">这个键由 Chrome 管理，点右边按钮去 Chrome 设置里改。</p>
+              <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">
+                这个键由 Chrome 管理，点右边按钮去 Chrome 设置里改。
+              </p>
             </div>
             <Btn onClick={openShortcutSettings} className="shrink-0">
               修改快捷键
@@ -265,19 +310,29 @@ export default function App() {
                 　全文翻译：页面所有可见文字就地对照，重点表达虚线标注点击讲解（再按一次隐藏）
               </p>
               <p className="mt-1 text-[11px] text-ink-400 dark:text-ink-500">
-                {recording ? '正在录制：按下想要的组合键（Esc 取消）' : '这个键在本扩展里自定义，想换就点右边录制。'}
+                {recording
+                  ? '正在录制：按下想要的组合键（Esc 取消）'
+                  : '这个键在本扩展里自定义，想换就点右边录制。'}
               </p>
             </div>
-            <Btn variant={recording ? 'primary' : 'ghost'} className="shrink-0" onClick={() => setRecording((v) => !v)}>
+            <Btn
+              variant={recording ? 'primary' : 'ghost'}
+              className="shrink-0"
+              onClick={() => setRecording((v) => !v)}
+            >
               {recording ? '录制中…' : '自定义按键'}
             </Btn>
           </div>
-          {backup.msg && recording && <p className="text-[11px] text-amber-600 dark:text-amber-400">{backup.msg}</p>}
+          {backup.msg && recording && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">{backup.msg}</p>
+          )}
         </div>
       </Section>
 
       <details className="mt-4 rounded-xl border border-ink-200 bg-white p-4 dark:border-ink-800 dark:bg-ink-900">
-        <summary className="cursor-pointer text-[12px] font-bold uppercase tracking-wide text-ink-400">高级设置（一般不用动）</summary>
+        <summary className="cursor-pointer text-[12px] font-bold uppercase tracking-wide text-ink-400">
+          高级设置（一般不用动）
+        </summary>
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label={`Temperature：${settings.api.temperature}`}>
@@ -297,7 +352,9 @@ export default function App() {
                 value={settings.api.maxTokens}
                 min={256}
                 max={32000}
-                onChange={(e) => update({ api: { ...settings.api, maxTokens: Number(e.target.value) || 8192 } })}
+                onChange={(e) =>
+                  update({ api: { ...settings.api, maxTokens: Number(e.target.value) || 8192 } })
+                }
                 className={inputCls}
               />
             </Field>
@@ -308,14 +365,18 @@ export default function App() {
                 min={10000}
                 max={300000}
                 step={5000}
-                onChange={(e) => update({ api: { ...settings.api, timeoutMs: Number(e.target.value) || 60000 } })}
+                onChange={(e) =>
+                  update({ api: { ...settings.api, timeoutMs: Number(e.target.value) || 60000 } })
+                }
                 className={inputCls}
               />
             </Field>
             <Field label="我的英语水平">
               <select
                 value={settings.user.level}
-                onChange={(e) => update({ user: { ...settings.user, level: e.target.value as Settings['user']['level'] } })}
+                onChange={(e) =>
+                  update({ user: { ...settings.user, level: e.target.value as Settings['user']['level'] } })
+                }
                 className={inputCls}
               >
                 {Object.entries(LEVEL_LABELS).map(([k, v]) => (
@@ -328,7 +389,9 @@ export default function App() {
             <Field label="分析深度">
               <select
                 value={settings.user.depth}
-                onChange={(e) => update({ user: { ...settings.user, depth: e.target.value as Settings['user']['depth'] } })}
+                onChange={(e) =>
+                  update({ user: { ...settings.user, depth: e.target.value as Settings['user']['depth'] } })
+                }
                 className={inputCls}
               >
                 {Object.entries(DEPTH_LABELS).map(([k, v]) => (
@@ -338,7 +401,10 @@ export default function App() {
                 ))}
               </select>
             </Field>
-            <Field label={`上下文长度：${settings.ui.contextLength} 字`} hint={`默认 ${DEFAULT_CONTEXT_LENGTH}`}>
+            <Field
+              label={`上下文长度：${settings.ui.contextLength} 字`}
+              hint={`默认 ${DEFAULT_CONTEXT_LENGTH}`}
+            >
               <input
                 type="range"
                 min={100}
@@ -352,7 +418,11 @@ export default function App() {
             <Field label="浮动工具栏" hint="关闭后仍可用图标入口">
               <select
                 value={settings.ui.floatingBar}
-                onChange={(e) => update({ ui: { ...settings.ui, floatingBar: e.target.value as Settings['ui']['floatingBar'] } })}
+                onChange={(e) =>
+                  update({
+                    ui: { ...settings.ui, floatingBar: e.target.value as Settings['ui']['floatingBar'] },
+                  })
+                }
                 className={inputCls}
               >
                 <option value="all">全站开启</option>
@@ -394,7 +464,9 @@ export default function App() {
           <p>
             默认：所有收藏/笔记/练习存在<b>浏览器本地</b>（Windows/Mac 一样，安全且离线可用）。
           </p>
-          <p>想额外存一份到你指定的文件夹（比如网盘同步目录）：选择文件夹后，知识库每次变化会自动把备份写进去。</p>
+          <p>
+            想额外存一份到你指定的文件夹（比如网盘同步目录）：选择文件夹后，知识库每次变化会自动把备份写进去。
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Btn
@@ -427,7 +499,11 @@ export default function App() {
               checked={backup.enabled}
               onChange={async (e) => {
                 await setAutoBackupEnabled(e.target.checked);
-                setBackup((b) => ({ ...b, enabled: e.target.checked, msg: e.target.checked ? '已开启自动备份' : '已关闭自动备份' }));
+                setBackup((b) => ({
+                  ...b,
+                  enabled: e.target.checked,
+                  msg: e.target.checked ? '已开启自动备份' : '已关闭自动备份',
+                }));
               }}
               className="accent-indigo-600"
             />
@@ -445,7 +521,9 @@ export default function App() {
         </div>
         {backup.msg && <p className="text-[11px] text-ink-500 dark:text-ink-400">{backup.msg}</p>}
         {backup.lastAt > 0 && (
-          <p className="text-[11px] text-ink-400">上次同步：{new Date(backup.lastAt).toLocaleString('zh-CN')}</p>
+          <p className="text-[11px] text-ink-400">
+            上次同步：{new Date(backup.lastAt).toLocaleString('zh-CN')}
+          </p>
         )}
       </Section>
 

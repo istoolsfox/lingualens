@@ -8,9 +8,24 @@
           "type": "object",
           "properties": {
             "id": { "type": "string", "description": "q1, q2, ..." },
-            "type": { "type": "string", "enum": ["word_meaning", "phrase_meaning", "grammar_choice", "translation", "imitation", "synonym", "correction"] },
+            "type": {
+              "type": "string",
+              "enum": [
+                "word_meaning",
+                "phrase_meaning",
+                "grammar_choice",
+                "translation",
+                "imitation",
+                "synonym",
+                "correction"
+              ]
+            },
             "prompt": { "type": "string", "description": "题干（含来源句/原句）" },
-            "options": { "type": "array", "items": { "type": "string" }, "description": "选择题四选项；主观题省略" },
+            "options": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "选择题四选项；主观题省略"
+            },
             "answer": { "type": "string", "description": "选择题为正确选项文本；主观题为参考答案" },
             "explanation": { "type": "string" }
           },
