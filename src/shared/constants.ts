@@ -19,7 +19,14 @@ export const ARTICLE_MAX_CHARS = 60000;
 export const FULLPAGE_MAX_CHARS = 50000;
 
 /** 应用内自定义快捷键默认组合（Ctrl/Cmd + Alt + L，触发全文翻译注入） */
-export const DEFAULT_HOTKEY = { key: 'L', ctrl: true, alt: true, meta: false, shift: false } as const;
+export const DEFAULT_HOTKEY = {
+  key: 'L',
+  code: 'KeyL',
+  ctrl: true,
+  alt: true,
+  meta: false,
+  shift: false,
+} as const;
 /** 会话缓存上限（条） */
 export const SESSION_CACHE_LIMIT = 20;
 

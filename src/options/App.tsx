@@ -288,7 +288,7 @@ export default function App() {
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs leading-relaxed text-ink-600 dark:text-ink-300">
               <p>
-                <kbd className="rounded border border-ink-300 bg-ink-50 px-1.5 py-0.5 font-mono text-[11px] dark:border-ink-600 dark:bg-ink-800">
+                <kbd className="rounded-md bg-accent-600 px-2 py-1 font-mono text-[11px] font-semibold text-white">
                   {isMac ? '⌘⇧L' : 'Alt + L'}
                 </kbd>
                 　翻译本文：智能提取正文，侧边栏逐段双语对照
@@ -304,7 +304,7 @@ export default function App() {
           <div className="flex items-center justify-between gap-3 border-t border-ink-100 pt-3 dark:border-ink-800">
             <div className="text-xs leading-relaxed text-ink-600 dark:text-ink-300">
               <p>
-                <kbd className="rounded border border-ink-300 bg-ink-50 px-1.5 py-0.5 font-mono text-[11px] dark:border-ink-600 dark:bg-ink-800">
+                <kbd className="rounded-md bg-accent-600 px-2 py-1 font-mono text-[11px] font-semibold text-white">
                   {formatHotkey(settings.ui.hotkey, isMac)}
                 </kbd>
                 　全文翻译：页面所有可见文字就地对照，重点表达虚线标注点击讲解（再按一次隐藏）
@@ -413,6 +413,14 @@ export default function App() {
                 value={settings.ui.contextLength}
                 onChange={(e) => update({ ui: { ...settings.ui, contextLength: Number(e.target.value) } })}
                 className="w-full"
+              />
+            </Field>
+            <Field label="讲解标注" hint="全文/文章翻译时在重点表达下加虚线，点击弹出讲解">
+              <input
+                type="checkbox"
+                checked={settings.ui.showHighlights !== false}
+                onChange={(e) => update({ ui: { ...settings.ui, showHighlights: e.target.checked } })}
+                className="accent-indigo-600"
               />
             </Field>
             <Field label="浮动工具栏" hint="关闭后仍可用图标入口">

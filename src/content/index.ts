@@ -4,10 +4,9 @@
 // 不做 AI 调用、不做存储逻辑。
 // ============================================================
 
-import { Readability } from '@mozilla/readability';
-import type { ArticlePayload, Snapshot } from '../shared/messages';
-import { ARTICLE_MAX_CHARS, MAX_SELECTION_LENGTH } from '../shared/constants';
-import { handleFullPageMessage, initFullPage, toggleFullPage } from './fullpage';
+import type { Snapshot } from '../shared/messages';
+import { MAX_SELECTION_LENGTH } from '../shared/constants';
+import { handleFullPageMessage, initFullPage, startPageTranslate, toggleFullPage } from './fullpage';
 
 const BAR_ID = 'lingualens-bar-host';
 const CONTEXT_LIMIT = 300;
@@ -254,110 +253,25 @@ window.addEventListener('pagehide', hideBar);
 
 // ---------- 快捷键触发的正文提取（Readability，只取文章主体） ----------
 
-/** 从容器节点提取段落（Readability 与启发式降级共用） */
-function blocksFromContainer(root: Element): { blocks: { id: number; text: string }[]; truncated: boolean } {
-  const nodes = root.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
-  const blocks: { id: number; text: string }[] = [];
-  let id = 0;
-  let total = 0;
-  let truncated = false;
-  const seen = new Set<string>();
-  for (const n of nodes) {
-    const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
-    if (text.length < 2) continue;
-    // 去重：Readability 偶发嵌套 p 会产生同文本块，重复卡观感差且浪费 token
-    if (seen.has(text)) continue;
-    seen.add(text);
-    if (total + text.length > ARTICLE_MAX_CHARS) {
-      truncated = true;
-      break;
-    }
-    blocks.push({ id: id++, text });
-    total += text.length;
-  }
-  return { blocks, truncated };
-}
-
-/**
- * 启发式正文降级：Readability 判不出文章结构时（论坛/首页/非常规排版），
- * 找文本量最大的语义容器兜底，尽量不再报"抓取不到"。
- */
-function heuristicArticleRoot(): Element | null {
-  const candidates = [
-    ...document.querySelectorAll(
-      'article, main, [role="main"], #content, .post, .post-content, .article, .article-content, .entry-content',
-    ),
-  ];
-  let best: Element | null = null;
-  let bestLen = 0;
-  for (const el of candidates) {
-    const len = (el.textContent ?? '').length;
-    if (len > bestLen) {
-      best = el;
-      bestLen = len;
-    }
-  }
-  if (best && bestLen >= 500) return best;
-  // 最后兜底：正文段落最多的直接父级
-  const ps = [...document.querySelectorAll('p')].filter((p) => (p.textContent ?? '').trim().length > 40);
-  if (ps.length >= 3) {
-    const parent = ps[0]?.parentElement;
-    if (parent && (parent.textContent ?? '').length >= 500) return parent;
-  }
-  return null;
-}
-
-function extractArticle(): ArticlePayload | { error: string } {
-  try {
-    // 先剥离本扩展注入的节点（译文/占位/讲解点），避免把上一次的注入文本当正文
-    document.querySelectorAll('[data-ll]').forEach((n) => n.remove());
-    // 优先 Readability（正文识别最准）
-    const clone = document.cloneNode(true) as Document;
-    const article = new Readability(clone).parse();
-    if (article?.content) {
-      const doc = new DOMParser().parseFromString(article.content, 'text/html');
-      const { blocks, truncated } = blocksFromContainer(doc.body);
-      if (blocks.length > 0) {
-        return {
-          title: article.title || document.title,
-          byline: article.byline || undefined,
-          siteName: article.siteName || undefined,
-          url: location.href,
-          blocks,
-          truncated,
-        };
-      }
-    }
-    // 降级：启发式容器
-    const root = heuristicArticleRoot();
-    if (root) {
-      const { blocks, truncated } = blocksFromContainer(root);
-      if (blocks.length > 0) {
-        return { title: document.title, url: location.href, blocks, truncated };
-      }
-    }
-    return { error: 'no_article' };
-  } catch {
-    return { error: 'no_article' };
-  }
-}
-
 chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
   // 全文注入翻译的进度/结果推送（SW → CS）
   if (handleFullPageMessage(msg)) return false;
-  const m = msg as { type?: string };
+  const m = msg as { type?: string; mode?: 'article' | 'full' };
   if (m?.type === 'DO_FULLPAGE_TOGGLE') {
     void toggleFullPage();
     sendResponse({ ok: true });
     return false;
   }
-  if (m?.type !== 'DO_EXTRACT_ARTICLE') return false;
-  const result = extractArticle();
-  if ('error' in result) {
-    sendResponse({ error: result.error });
-  } else {
-    void chrome.runtime.sendMessage({ type: 'ARTICLE_TRANSLATE', payload: result }).catch(() => undefined);
-    sendResponse({ ok: true, blocks: result.blocks.length });
+  if (m?.type === 'DO_EXTRACT_ARTICLE') {
+    // 兼容旧消息（Alt+L 命令/右键菜单）：正文注入效果与全文一致
+    void startPageTranslate('article');
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (m?.type === 'DO_TRANSLATE_PAGE') {
+    void startPageTranslate(m.mode === 'full' ? 'full' : 'article');
+    sendResponse({ ok: true });
+    return false;
   }
   return false; // 同步响应
 });

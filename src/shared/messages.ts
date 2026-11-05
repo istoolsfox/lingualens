@@ -49,7 +49,7 @@ export interface Snapshot {
   truncated?: boolean;
 }
 
-/** 整文翻译的正文提取结果（Readability） */
+/** 页面级翻译载荷（article=正文范围 / full=全页；注入管线共用） */
 export interface ArticlePayload {
   title: string;
   byline?: string;
@@ -58,6 +58,7 @@ export interface ArticlePayload {
   blocks: { id: number; text: string }[];
   /** 超长被截断 */
   truncated?: boolean;
+  mode?: 'article' | 'full';
 }
 
 /** SW → CS：请求提取正文（快捷键触发） */
@@ -112,6 +113,8 @@ export type Msg =
   | { type: 'ARTICLE_TRANSLATE'; payload: ArticlePayload }
   | { type: 'ARTICLE_CANCEL' }
   | { type: 'FULLPAGE_TRANSLATE'; payload: FullPagePayload }
+  | { type: 'PAGE_TRANSLATE'; payload: FullPagePayload }
+  | { type: 'DO_TRANSLATE_PAGE'; mode: 'article' | 'full' }
   | { type: 'FULLPAGE_CANCEL' }
   | { type: 'ANALYZE_CANCEL'; analysisId: string }
   | {

@@ -6,8 +6,10 @@ import type { Depth, FloatingBarMode, Level, Theme } from './types';
 import { DEFAULT_CONTEXT_LENGTH, DEFAULT_HOTKEY } from './constants';
 
 export interface HotkeyCombo {
-  /** 主键：单个字母/数字（大写存储） */
+  /** 主键：单个字母/数字（大写存储，展示用） */
   key: string;
+  /** 物理键位（e.code，如 KeyL）——Alt/组合键会改变 e.key 字符，必须按 code 匹配才稳定 */
+  code?: string;
   ctrl: boolean;
   alt: boolean;
   meta: boolean;
@@ -32,6 +34,8 @@ export interface Settings {
     contextLength: number;
     /** 应用内自定义快捷键（全文翻译注入），清空 key 则停用 */
     hotkey: HotkeyCombo;
+    /** 页面注入时是否显示讲解点虚线标注 */
+    showHighlights: boolean;
   };
   user: {
     level: Level;
@@ -56,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
     excludedDomains: [],
     contextLength: DEFAULT_CONTEXT_LENGTH,
     hotkey: { ...DEFAULT_HOTKEY },
+    showHighlights: true,
   },
   user: {
     level: 'intermediate',
@@ -76,11 +81,13 @@ export function mergeSettings(raw: unknown): Settings {
       ...(r.ui ?? {}),
       hotkey: {
         key: typeof hotkey.key === 'string' ? hotkey.key : d.ui.hotkey.key,
+        code: typeof hotkey.code === 'string' ? hotkey.code : d.ui.hotkey.code,
         ctrl: hotkey.ctrl ?? d.ui.hotkey.ctrl,
         alt: hotkey.alt ?? d.ui.hotkey.alt,
         meta: hotkey.meta ?? d.ui.hotkey.meta,
         shift: hotkey.shift ?? d.ui.hotkey.shift,
       },
+      showHighlights: r.ui?.showHighlights ?? d.ui.showHighlights,
     },
     user: { ...d.user, ...(r.user ?? {}) },
     privacyAcknowledgedAt: r.privacyAcknowledgedAt ?? null,

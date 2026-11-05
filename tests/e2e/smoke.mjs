@@ -122,6 +122,11 @@ await popupPage.setViewportSize({ width: 372, height: 560 });
 await shot(popupPage, '02-popup.png');
 const hasFullpageBtn = await popupPage.locator('#btn-fullpage').count();
 check('弹窗主界面渲染（全文翻译主按钮）', hasFullpageBtn === 1);
+const hasProvider = await popupPage.locator('#provider').count();
+const hasKeyInput = await popupPage.locator('#apikey').count();
+check('弹窗连接卡：厂商/密钥选择内联（v0.5）', hasProvider === 1 && hasKeyInput === 1);
+const kbdCount = await popupPage.locator('.kbd').count();
+check('快捷键显著化（蓝底胶囊×2）', kbdCount === 2, `kbd ${kbdCount}`);
 
 // ---- 3. fixture 页全文翻译（含转圈占位与注入） ----
 const artPage = await context.newPage();
@@ -185,46 +190,58 @@ check(
   `${countBefore.count} → ${countAfter.count}`,
 );
 
-// ---- 5. 翻译本文（Alt+L 等效）：侧栏双语 + pill ----
-await viaTab('DO_EXTRACT_ARTICLE');
-await artPage.waitForTimeout(3500);
-// 侧栏页面
-let sidePage = null;
-for (const p of context.pages()) {
-  if (p.url().includes('sidepanel.html')) sidePage = p;
+// ---- 5. 文章翻译（Alt+L / 右键菜单等效）：页面注入，与全文效果一致 ----
+// 先隐藏全文注入（article 只翻正文容器，避免旧注入文本干扰判断）
+await viaTab('DO_FULLPAGE_TOGGLE');
+await artPage.waitForTimeout(300);
+await viaTab('DO_TRANSLATE_PAGE', 'article');
+// 等 article 注入完成（正文段译文出现）
+let articleInjected = 0;
+for (let i = 0; i < 40; i++) {
+  await artPage.waitForTimeout(500);
+  articleInjected = await artPage.evaluate(
+    () =>
+      [...document.querySelectorAll('[data-ll]')].filter((n) => n.textContent?.includes('【假译文】')).length,
+  );
+  const loading = await artPage.evaluate(() => document.querySelectorAll('[data-ll-loading]').length);
+  if (articleInjected >= 5 && loading === 0) break;
 }
-if (!sidePage) {
-  sidePage = await context.newPage();
-  await sidePage.goto(`chrome-extension://${extId}/sidepanel.html`);
-  await sidePage.waitForTimeout(1500);
-}
-// 首次使用隐私确认卡（新面板页需要点掉才能操作）
+check('文章翻译：正文注入与全文效果一致（≥5 段真译文）', articleInjected >= 5, `实际 ${articleInjected}`);
+await shot(artPage, '05-article-injected.png');
+
+// ---- 6. 缓存秒出：清注入后同模式重译应 0 新请求 ----
+const countBefore2 = await fetch('http://localhost:18734/count')
+  .then((r) => r.json())
+  .catch(() => ({ count: -1 }));
+await artPage.evaluate(() => document.querySelectorAll('[data-ll]').forEach((n) => n.remove()));
+await viaTab('DO_TRANSLATE_PAGE', 'article');
+await artPage.waitForTimeout(2500);
+const articleCached = await artPage.evaluate(
+  () =>
+    [...document.querySelectorAll('[data-ll]')].filter((n) => n.textContent?.includes('【假译文】')).length,
+);
+const countAfter2 = await fetch('http://localhost:18734/count')
+  .then((r) => r.json())
+  .catch(() => ({ count: -1 }));
+check(
+  '文章翻译二次触发走 URL 缓存（0 新请求）',
+  articleCached >= 5 && countAfter2.count - countBefore2.count === 0,
+  `译文 ${articleCached}，请求 ${countBefore2.count} → ${countAfter2.count}`,
+);
+await shot(artPage, '06-article-cached.png');
+
+// ---- 7. 侧栏可达 ----
+const sidePage = await context.newPage();
+await sidePage.goto(`chrome-extension://${extId}/sidepanel.html`);
+await sidePage.waitForTimeout(1200);
 const privacyBtn = sidePage.locator('text=我已了解，开始使用');
 if ((await privacyBtn.count()) > 0) {
   await privacyBtn.click();
   await sidePage.waitForTimeout(300);
 }
-await sidePage.waitForTimeout(2000);
-const hasNatural = await sidePage.locator('text=【假译文】').count();
-const hasCache =
-  (await sidePage.locator('text=已直接使用缓存').count()) + (await sidePage.locator('text=旧译文').count());
-check('翻译本文：侧栏出现逐段双语（假译文渲染）', hasNatural >= 1, `命中 ${hasNatural}`);
-check('翻译本文：同页缓存命中提示', hasCache >= 1);
-await shot(sidePage, '05-sidepanel-article.png');
-
-// pill 状态
-const pillDone = await artPage.evaluate(() => {
-  const hosts = document.querySelectorAll('[data-ll]');
-  for (const h of hosts) {
-    if (h.shadowRoot?.querySelector('.pill')) return h.shadowRoot.querySelector('.pill')?.textContent ?? '';
-  }
-  return '';
-});
-check(
-  '页面顶部状态 pill 有完成态文案',
-  pillDone.includes('翻译') || pillDone.includes('复用'),
-  pillDone || '(无 pill)',
-);
+const idleOk = await sidePage.locator('text=选中网页上的英文开始精读').count();
+check('侧边栏可达（idle 态正常）', idleOk >= 1);
+await shot(sidePage, '07-sidepanel.png');
 
 await context.close();
 fixture.close();

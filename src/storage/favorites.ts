@@ -24,6 +24,8 @@ export interface ArticleCacheRow {
   blocks: { id: number; text: string }[];
   translations: Record<number, string>;
   updatedAt: number;
+  /** fullpage 模式的讲解点缓存（article 模式无） */
+  highlights?: { id: number; expr: string; why: string }[];
 }
 
 const DB_NAME = 'lingualens';

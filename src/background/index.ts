@@ -120,18 +120,30 @@ chrome.commands.onCommand.addListener((command) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (typeof tab?.id !== 'number') return;
     try {
-      const resp = await chrome.tabs.sendMessage(tab.id, { type: 'DO_EXTRACT_ARTICLE' });
-      if (resp?.error) {
-        setArticleError(String(resp.error));
-        await openPanel(tab.id);
-      }
-      // 成功路径：CS → ARTICLE_TRANSLATE → SW，随后由消息处理器打开面板
+      // v0.5：正文翻译效果与全文一致（页面注入 + 转圈占位 + pill）
+      await chrome.tabs.sendMessage(tab.id, { type: 'DO_EXTRACT_ARTICLE' });
     } catch {
-      // 受限页面无法注入
       await chrome.storage.session.set({ [RESTRICTED_KEY]: true });
       await openPanel(tab.id);
     }
   })();
+});
+
+// ---------- 右键菜单：文章翻译 ----------
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'll-article-translate',
+      title: '文章翻译（LinguaLens）',
+      contexts: ['page', 'selection'],
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== 'll-article-translate' || typeof tab?.id !== 'number') return;
+  void chrome.tabs.sendMessage(tab.id, { type: 'DO_EXTRACT_ARTICLE' }).catch(() => undefined);
 });
 
 // ---------- 消息路由 ----------
@@ -209,6 +221,25 @@ async function handleMessage(msg: Msg, sender: chrome.runtime.MessageSender): Pr
       // SW → CS 推送函数（逐批结果回到注入页面）
       const tabId = sender.tab?.id;
       const pushToTab = (id: number, msg: unknown) => chrome.tabs.sendMessage(id, msg);
+      try {
+        await startFullPageTranslate(msg.payload, pushToTab, tabId);
+      } catch (err) {
+        const code =
+          err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';
+        if (typeof tabId === 'number') {
+          await pushToTab(tabId, {
+            type: 'FULLPAGE_ERROR',
+            errorCode: code,
+            errorMessage: err instanceof Error ? err.message : undefined,
+          }).catch(() => undefined);
+        }
+      }
+      return { ok: true };
+    }
+
+    case 'PAGE_TRANSLATE': {
+      const tabId = sender.tab?.id;
+      const pushToTab = (id: number, m: unknown) => chrome.tabs.sendMessage(id, m);
       try {
         await startFullPageTranslate(msg.payload, pushToTab, tabId);
       } catch (err) {

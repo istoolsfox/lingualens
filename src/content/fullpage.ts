@@ -5,6 +5,7 @@
 // 再按快捷键切换显示/隐藏；全部注入节点带 data-ll 标记可整体清除
 // ============================================================
 
+import { Readability } from '@mozilla/readability';
 import { FULLPAGE_MAX_CHARS } from '../shared/constants';
 import type { FullPageHighlight } from '../shared/messages';
 import type { HotkeyLike } from './hotkeyTypes';
@@ -57,12 +58,12 @@ function isVisible(el: Element): boolean {
   return he.offsetParent !== null || he.getClientRects().length > 0;
 }
 
-function collectUnits(): { units: Unit[]; truncated: boolean } {
+function collectUnits(scope: Element = document.body): { units: Unit[]; truncated: boolean } {
   const groups = new Map<Element, string[]>();
   let total = 0;
   let truncated = false;
 
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;
@@ -179,6 +180,7 @@ function markFailed(ids: number[]): void {
 
 /** 讲解点：在对应单元容器里找 expr 首次出现，包上虚线下划线 span */
 function applyHighlights(highlights: FullPageHighlight[]): void {
+  if (!showHighlights) return;
   for (const h of highlights) {
     try {
       const container = unitContainers.get(h.id);
@@ -376,21 +378,77 @@ function setAllVisible(v: boolean): void {
   visible = v;
 }
 
-/** 快捷键 / 浮动栏按钮入口：运行中取消 → 已注入切显隐 → 否则开始 */
+/** 快捷键 / 浮动栏按钮入口（full 模式）：运行中取消 → 已注入切显隐 → 否则开始 */
 export async function toggleFullPage(): Promise<void> {
+  await startPageTranslate('full');
+}
+
+// ---------- 正文容器定位（article 模式） ----------
+
+/** 启发式正文容器：article/main 优先，取文本量最大者 */
+function heuristicArticleRoot(): Element | null {
+  const candidates = [
+    ...document.querySelectorAll(
+      'article, main, [role="main"], #content, .post, .post-content, .article, .article-content, .entry-content',
+    ),
+  ];
+  let best: Element | null = null;
+  let bestLen = 0;
+  for (const el of candidates) {
+    const len = (el.textContent ?? '').length;
+    if (len > bestLen) {
+      best = el;
+      bestLen = len;
+    }
+  }
+  if (best && bestLen >= 500) return best;
+  const ps = [...document.querySelectorAll('p')].filter((p) => (p.textContent ?? '').trim().length > 40);
+  if (ps.length >= 3) {
+    const parent = ps[0]?.parentElement;
+    if (parent && (parent.textContent ?? '').length >= 500) return parent;
+  }
+  return null;
+}
+
+/**
+ * 统一页面翻译入口（v0.5：article 与 full 效果一致——都是页面注入）。
+ * article = 智能定位正文容器后注入（标题也翻）；full = 全页注入。
+ */
+export async function startPageTranslate(mode: 'article' | 'full'): Promise<void> {
   if (translating) {
     await chrome.runtime.sendMessage({ type: 'FULLPAGE_CANCEL' }).catch(() => undefined);
     clearInjection();
     return;
+  }
+  // DOM 里已无注入节点（页面刷新/SPA 重渲染/被手动清除）时，内部标志必须归零重译
+  if (injected && !document.querySelector(`[${TAG}]`)) {
+    injected = false;
+    visible = false;
+    translating = false;
   }
   if (injected) {
     setAllVisible(!visible);
     return;
   }
   clearInjection();
-  const { units: collected, truncated } = collectUnits();
+  // 先剥离旧注入，正文提取不被自己污染
+  document.querySelectorAll(`[${TAG}]`).forEach((n) => n.remove());
+
+  let title = document.title;
+  let scope: Element = document.body;
+  if (mode === 'article') {
+    try {
+      const article = new Readability(document.cloneNode(true) as Document).parse();
+      if (article?.title) title = article.title;
+    } catch {
+      // 标题拿不到就用 document.title
+    }
+    scope = heuristicArticleRoot() ?? document.body;
+  }
+
+  const { units: collected, truncated } = collectUnits(scope);
   if (collected.length === 0) {
-    setPill('err', '这页没有可翻译的可见文字（点击关闭）');
+    setPill('err', mode === 'article' ? '没有找到正文（点击关闭）' : '这页没有可翻译的可见文字（点击关闭）');
     setTimeout(hidePill, 4000);
     return;
   }
@@ -398,15 +456,17 @@ export async function toggleFullPage(): Promise<void> {
   injected = true;
   visible = true;
   translating = true;
-  setPill('run', truncated ? `全文翻译中…（内容过多，已取前 ${FULLPAGE_MAX_CHARS} 字符）` : '全文翻译中…');
-  // 每个段落先放"转圈圈"，批次回来逐个替换为译文——用户全程看得到进度
+  const label = mode === 'article' ? '正文翻译中…' : '全文翻译中…';
+  setPill('run', truncated ? `${label}（内容过多，已取前 ${FULLPAGE_MAX_CHARS} 字符）` : label);
+  // 每段先放转圈占位，批次回来逐个替换
   injectLoadingPlaceholders();
   await chrome.runtime
     .sendMessage({
-      type: 'FULLPAGE_TRANSLATE',
+      type: 'PAGE_TRANSLATE',
       payload: {
         url: location.href,
-        title: document.title,
+        title,
+        mode,
         units: collected.map((u) => ({ id: u.id, text: u.text })),
         truncated,
       },
@@ -467,6 +527,7 @@ export function handleFullPageMessage(msg: unknown): boolean {
 
 interface HotkeyComboLite {
   key: string;
+  code?: string;
   ctrl: boolean;
   alt: boolean;
   meta: boolean;
@@ -474,20 +535,28 @@ interface HotkeyComboLite {
 }
 
 let hotkeyCache: HotkeyComboLite | null = null;
+let showHighlights = true;
 
 export async function refreshHotkeyCache(): Promise<void> {
   try {
     const res = await chrome.storage.local.get('ll_settings');
-    const s = (res['ll_settings'] ?? {}) as { ui?: { hotkey?: HotkeyComboLite } };
+    const s = (res['ll_settings'] ?? {}) as { ui?: { hotkey?: HotkeyComboLite; showHighlights?: boolean } };
     hotkeyCache = s.ui?.hotkey ?? null;
+    showHighlights = s.ui?.showHighlights !== false;
   } catch {
     hotkeyCache = null;
   }
 }
 
 function hotkeyMatches(e: KeyboardEvent, h: HotkeyLike): boolean {
-  const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-  if (key !== h.key.toUpperCase()) return false;
+  // 核心修复：按物理键位 e.code 匹配——组合键（尤其 Alt）会改变 e.key 字符（Mac ⌥L 产生 ¬），
+  // 按 e.key 匹配在真实键盘上永远不中（v0.4 快捷键失效真因）
+  if (h.code) {
+    if (e.code !== h.code) return false;
+  } else {
+    const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    if (key !== h.key.toUpperCase()) return false;
+  }
   return (
     (e.ctrlKey || false) === h.ctrl &&
     (e.altKey || false) === h.alt &&

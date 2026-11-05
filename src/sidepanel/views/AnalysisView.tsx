@@ -270,6 +270,15 @@ function IdleState({ restricted }: { restricted: boolean }) {
         <p>· 也可以点击浏览器工具栏的 LinguaLens 图标，自动读取当前页选中内容</p>
         <p>· 分析结果可收藏进知识库，之后可以用来生成练习</p>
       </div>
+      {st.article.payload && (
+        <Btn
+          onClick={() => {
+            st.setView('article');
+          }}
+        >
+          查看最近整文翻译
+        </Btn>
+      )}
       <div className="flex-1" />
       <Btn onClick={() => st.setView('library')}>查看知识库</Btn>
     </div>
