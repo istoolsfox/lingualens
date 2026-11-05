@@ -12,11 +12,6 @@ body {
   @apply bg-ink-50 text-ink-900 text-[13px] antialiased;
 }
 
-/* 固定暗色（G 暗色应用壳）：暖黑底 + 84% 白主文字，层级靠底色不靠阴影 */
-html.dark body {
-  @apply bg-ink-950 text-ink-200;
-}
-
 /* 细滚动条 */
 *::-webkit-scrollbar {
   width: 6px;
@@ -46,11 +41,7 @@ html.dark body {
 .md a {
   @apply text-accent-600 dark:text-accent-400 underline underline-offset-2;
 }
-/* G 变体：卡片用描边+底色分层，不用阴影 */
-html.dark section,
-html.dark .card-flat {
-  box-shadow: none;
-}
+
 .md h1,
 .md h2,
 .md h3 {

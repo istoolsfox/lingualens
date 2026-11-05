@@ -405,6 +405,7 @@ export const useStore = create<PanelState>()((set, get) => {
             totalBatches: a.totalBatches,
             doneBatches: a.doneBatches,
             errorCode: a.errorCode,
+            cacheInfo: a.cacheInfo,
           },
         });
       } else if (state.restricted) {
@@ -432,8 +433,8 @@ export const useStore = create<PanelState>()((set, get) => {
     },
 
     applyTheme() {
-      // v0.3 固定暗色主题（G 暗色应用壳），不再随系统/手动切换
-      document.documentElement.classList.add('dark');
+      // v0.4 定案：白底单色主题，清掉历史 dark 残留
+      document.documentElement.classList.remove('dark');
     },
 
     async acknowledgePrivacy() {

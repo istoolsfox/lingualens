@@ -5,7 +5,7 @@
 // ============================================================
 
 import { Readability } from '@mozilla/readability';
-import type { ArticleExtractRequest, ArticlePayload, Snapshot } from '../shared/messages';
+import type { ArticlePayload, Snapshot } from '../shared/messages';
 import { ARTICLE_MAX_CHARS, MAX_SELECTION_LENGTH } from '../shared/constants';
 import { handleFullPageMessage, initFullPage, toggleFullPage } from './fullpage';
 
@@ -103,22 +103,22 @@ const BAR_CSS = `
   .bar {
     position: fixed; z-index: 2147483647;
     display: flex; align-items: center; gap: 2px;
-    background: #1e293b; border: 1px solid #334155; border-radius: 8px;
-    padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 4px; box-shadow: 0 6px 20px rgba(15,23,42,.14);
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     opacity: 0; transform: translateY(2px); transition: opacity .12s ease, transform .12s ease;
   }
   .bar.show { opacity: 1; transform: translateY(0); }
   .btn {
-    appearance: none; border: 0; background: transparent; color: #e2e8f0;
+    appearance: none; border: 0; background: transparent; color: #334155;
     font-size: 12px; line-height: 1; padding: 6px 9px; border-radius: 6px;
     cursor: pointer; white-space: nowrap; font-family: inherit;
   }
-  .btn:hover { background: #334155; color: #fff; }
-  .btn.primary { background: #4f46e5; color: #fff; font-weight: 600; }
-  .btn.primary:hover { background: #4338ca; }
-  .sep { width: 1px; height: 16px; background: #334155; margin: 0 2px; }
-  .close { color: #64748b; font-size: 13px; padding: 6px 7px; }
+  .btn:hover { background: #eff6ff; color: #2563eb; }
+  .btn.primary { background: #2563eb; color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: #1d4ed8; }
+  .sep { width: 1px; height: 16px; background: #e2e8f0; margin: 0 2px; }
+  .close { color: #94a3b8; font-size: 13px; padding: 6px 7px; }
 `;
 
 function ensureHost(): ShadowRoot {
@@ -138,7 +138,7 @@ function ensureHost(): ShadowRoot {
     '<button class="btn" data-act="fullpage" title="全文翻译：页面所有可见文字注入对照，重点表达虚线标注">全文</button>',
     '<button class="btn" data-act="favorite">收藏</button>',
     '<button class="btn close" data-act="close" title="关闭">✕</button>',
-    '<span class="warn" hidden style="color:#fbbf24;font-size:11px;padding:0 6px;">长文已截断</span>',
+    '<span class="warn" hidden style="color:#d97706;font-size:11px;padding:0 6px;">长文已截断</span>',
   ].join('');
   root.append(style, bar);
   document.documentElement.appendChild(host);
@@ -254,38 +254,89 @@ window.addEventListener('pagehide', hideBar);
 
 // ---------- 快捷键触发的正文提取（Readability，只取文章主体） ----------
 
+/** 从容器节点提取段落（Readability 与启发式降级共用） */
+function blocksFromContainer(root: Element): { blocks: { id: number; text: string }[]; truncated: boolean } {
+  const nodes = root.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
+  const blocks: { id: number; text: string }[] = [];
+  let id = 0;
+  let total = 0;
+  let truncated = false;
+  const seen = new Set<string>();
+  for (const n of nodes) {
+    const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (text.length < 2) continue;
+    // 去重：Readability 偶发嵌套 p 会产生同文本块，重复卡观感差且浪费 token
+    if (seen.has(text)) continue;
+    seen.add(text);
+    if (total + text.length > ARTICLE_MAX_CHARS) {
+      truncated = true;
+      break;
+    }
+    blocks.push({ id: id++, text });
+    total += text.length;
+  }
+  return { blocks, truncated };
+}
+
+/**
+ * 启发式正文降级：Readability 判不出文章结构时（论坛/首页/非常规排版），
+ * 找文本量最大的语义容器兜底，尽量不再报"抓取不到"。
+ */
+function heuristicArticleRoot(): Element | null {
+  const candidates = [
+    ...document.querySelectorAll(
+      'article, main, [role="main"], #content, .post, .post-content, .article, .article-content, .entry-content',
+    ),
+  ];
+  let best: Element | null = null;
+  let bestLen = 0;
+  for (const el of candidates) {
+    const len = (el.textContent ?? '').length;
+    if (len > bestLen) {
+      best = el;
+      bestLen = len;
+    }
+  }
+  if (best && bestLen >= 500) return best;
+  // 最后兜底：正文段落最多的直接父级
+  const ps = [...document.querySelectorAll('p')].filter((p) => (p.textContent ?? '').trim().length > 40);
+  if (ps.length >= 3) {
+    const parent = ps[0]?.parentElement;
+    if (parent && (parent.textContent ?? '').length >= 500) return parent;
+  }
+  return null;
+}
+
 function extractArticle(): ArticlePayload | { error: string } {
   try {
+    // 先剥离本扩展注入的节点（译文/占位/讲解点），避免把上一次的注入文本当正文
+    document.querySelectorAll('[data-ll]').forEach((n) => n.remove());
+    // 优先 Readability（正文识别最准）
     const clone = document.cloneNode(true) as Document;
     const article = new Readability(clone).parse();
-    if (!article?.content) return { error: 'no_article' };
-
-    const doc = new DOMParser().parseFromString(article.content, 'text/html');
-    const nodes = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
-    const blocks: { id: number; text: string }[] = [];
-    let id = 0;
-    let total = 0;
-    let truncated = false;
-    for (const n of nodes) {
-      const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
-      if (text.length < 2) continue;
-      if (total + text.length > ARTICLE_MAX_CHARS) {
-        truncated = true;
-        break;
+    if (article?.content) {
+      const doc = new DOMParser().parseFromString(article.content, 'text/html');
+      const { blocks, truncated } = blocksFromContainer(doc.body);
+      if (blocks.length > 0) {
+        return {
+          title: article.title || document.title,
+          byline: article.byline || undefined,
+          siteName: article.siteName || undefined,
+          url: location.href,
+          blocks,
+          truncated,
+        };
       }
-      blocks.push({ id: id++, text });
-      total += text.length;
     }
-    if (blocks.length === 0) return { error: 'no_article' };
-
-    return {
-      title: article.title || document.title,
-      byline: article.byline || undefined,
-      siteName: article.siteName || undefined,
-      url: location.href,
-      blocks,
-      truncated,
-    };
+    // 降级：启发式容器
+    const root = heuristicArticleRoot();
+    if (root) {
+      const { blocks, truncated } = blocksFromContainer(root);
+      if (blocks.length > 0) {
+        return { title: document.title, url: location.href, blocks, truncated };
+      }
+    }
+    return { error: 'no_article' };
   } catch {
     return { error: 'no_article' };
   }
@@ -294,7 +345,12 @@ function extractArticle(): ArticlePayload | { error: string } {
 chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
   // 全文注入翻译的进度/结果推送（SW → CS）
   if (handleFullPageMessage(msg)) return false;
-  const m = msg as Partial<ArticleExtractRequest>;
+  const m = msg as { type?: string };
+  if (m?.type === 'DO_FULLPAGE_TOGGLE') {
+    void toggleFullPage();
+    sendResponse({ ok: true });
+    return false;
+  }
   if (m?.type !== 'DO_EXTRACT_ARTICLE') return false;
   const result = extractArticle();
   if ('error' in result) {

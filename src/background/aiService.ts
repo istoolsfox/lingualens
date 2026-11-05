@@ -217,7 +217,7 @@ export async function startAnalysis(snapshot: Snapshot, manual?: Mode): Promise<
             { role: 'user', content: RETRY_INSTRUCTION },
           ],
           stream: false,
-          jsonObject: true,
+          jsonObject: false,
           signal: controller.signal,
         });
         parsed = parseAnalysis(retryAcc, snapshot.text);
@@ -309,7 +309,7 @@ export async function startLight(snapshot: Snapshot, action: LightAction): Promi
             { role: 'user', content: RETRY_INSTRUCTION },
           ],
           stream: false,
-          jsonObject: true,
+          jsonObject: false,
           signal: controller.signal,
         });
         parsed = parseLight(retryAcc, action, snapshot.text);
@@ -430,7 +430,7 @@ export function cancelFollowUp(id: string): void {
 // ---------- 学习训练 ----------
 
 export async function practiceGenerate(types: string[], count: number): Promise<Question[]> {
-  const { cfg } = await resolveEndpoint();
+  const { cfg, settings } = await resolveEndpoint();
   const all = await listEntriesRaw();
   const preview = all.slice(0, Math.max(count * 3, 12)).map((e) => ({
     text: e.text,
@@ -462,7 +462,7 @@ export async function practiceGenerate(types: string[], count: number): Promise<
       { role: 'user', content: prompt.user },
     ],
     stream: false,
-    jsonObject: true,
+    jsonObject: settings.api.strictJson,
   });
   const obj = extractJsonObject(acc) as { questions?: unknown } | undefined;
   const questions = Array.isArray(obj?.questions) ? (obj.questions as Question[]) : [];
@@ -474,7 +474,7 @@ export async function practiceGrade(session: PracticeSession): Promise<{
   gradings: { questionId: string; verdict: string; comment: string }[];
   overall_comment?: string;
 }> {
-  const { cfg } = await resolveEndpoint();
+  const { cfg, settings } = await resolveEndpoint();
   const subjective = session.questions.filter(
     (q) => q.type === 'translation' || q.type === 'imitation' || q.type === 'correction',
   );
@@ -487,7 +487,7 @@ export async function practiceGrade(session: PracticeSession): Promise<{
       { role: 'user', content: prompt.user },
     ],
     stream: false,
-    jsonObject: true,
+    jsonObject: settings.api.strictJson,
   });
   const obj = extractJsonObject(acc) as
     | { gradings?: { questionId: string; verdict: string; comment: string }[]; overall_comment?: string }
@@ -504,6 +504,7 @@ const articleState: ArticleStateView = {
   totalBatches: 0,
   doneBatches: 0,
   results: {},
+  cacheInfo: undefined,
 };
 
 export function getArticleState(): ArticleStateView {
@@ -517,9 +518,18 @@ export function setArticleError(code: string): void {
   broadcast({ type: 'done', channel: 'article', ok: false, errorCode: code });
 }
 
-export async function startArticleTranslate(payload: ArticlePayload): Promise<void> {
+export async function startArticleTranslate(
+  payload: ArticlePayload,
+  pushToTab?: (tabId: number, msg: unknown) => Promise<void>,
+  tabId?: number,
+): Promise<void> {
   cancelArticle();
-  const { cfg } = await resolveEndpoint();
+  const push = async (state: 'run' | 'done' | 'err', text: string) => {
+    if (pushToTab && typeof tabId === 'number')
+      await pushToTab(tabId, { type: 'LL_PILL', state, text }).catch(() => undefined);
+  };
+  const { cfg, settings } = await resolveEndpoint();
+  const useJsonMode = settings.api.strictJson;
   const fingerprint = pageFingerprint(payload.blocks.map((b) => b.text));
 
   // ① URL 全量命中且内容未变 → 直接用缓存，零请求
@@ -536,6 +546,8 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
     articleState.doneBatches = 1;
     articleState.totalBatches = 1;
     delete articleState.errorCode;
+    articleState.cacheInfo = { cached: true, reused: cached.blocks.length, fresh: 0 };
+    await push('done', `已用缓存翻译完成（${cached.blocks.length} 段，0 token），见侧边栏`);
     broadcast({
       type: 'done',
       channel: 'article',
@@ -560,6 +572,8 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
     articleState.doneBatches = 1;
     articleState.totalBatches = 1;
     delete articleState.errorCode;
+    articleState.cacheInfo = { cached: false, reused: reused.length, fresh: 0 };
+    await push('done', `全部段落命中译文记忆（复用 ${reused.length} 段，0 token），见侧边栏`);
     await articleCachePut(buildArticleCacheRow(payload, fingerprint, reusedMap));
     broadcast({
       type: 'done',
@@ -576,9 +590,11 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
   articleState.totalBatches = batches.length;
   articleState.doneBatches = 0;
   delete articleState.errorCode;
+  await push('run', `正文翻译中… 0/${batches.length} 批`);
 
   const controller = new AbortController();
   articleController = controller;
+  const failedIds: number[] = [];
 
   void (async () => {
     try {
@@ -590,7 +606,7 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
             { role: 'user', content: prompt.user },
           ],
           stream: false,
-          jsonObject: true,
+          jsonObject: useJsonMode,
           signal: controller.signal,
         });
         const obj = extractJsonObject(acc) as { items?: { id?: unknown; natural?: unknown }[] } | undefined;
@@ -598,11 +614,53 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
           (it): it is { id: number; natural: string } =>
             typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
         );
-        if (items.length === 0) throw new AiError('parse', '某一批翻译返回无法解析，整体中止');
+        if (items.length === 0) {
+          // 一批失败不再整体中止：去 JSON 模式重试一次，仍失败则标记该批并继续后续批
+          const retryAcc = await chatCompletionWithRetry(cfg, {
+            messages: [
+              { role: 'system', content: prompt.system },
+              { role: 'user', content: prompt.user + '\n\n注意：只输出 JSON 对象，不要任何其他文字。' },
+            ],
+            stream: false,
+            jsonObject: false,
+            signal: controller.signal,
+          });
+          const retryObj = extractJsonObject(retryAcc) as
+            { items?: { id?: unknown; natural?: unknown }[] } | undefined;
+          const retryItems = (Array.isArray(retryObj?.items) ? retryObj.items : []).filter(
+            (it): it is { id: number; natural: string } =>
+              typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
+          );
+          if (retryItems.length === 0) {
+            failedIds.push(...batch.blocks.map((b) => b.id));
+            broadcast({ type: 'article_batch', index: batch.index, total: batch.total, items: [] });
+            continue;
+          }
+          const gotRetry = new Set(retryItems.map((i) => i.id));
+          const missingRetry = batch.blocks.filter((b) => !gotRetry.has(b.id)).map((b) => b.id);
+          if (missingRetry.length > 0) failedIds.push(...missingRetry);
+          for (const it of retryItems) {
+            articleState.results[it.id] = it.natural;
+          }
+          articleState.doneBatches++;
+          broadcast({ type: 'article_batch', index: batch.index, total: batch.total, items: retryItems });
+          await memoSave(
+            retryItems.map((it) => ({
+              text: batch.blocks.find((b) => b.id === it.id)?.text ?? '',
+              natural: it.natural,
+            })),
+          );
+          continue;
+        }
+        // 覆盖度校验：模型漏回的 id 显式标失败，绝不静默丢段
+        const gotIds = new Set(items.map((i) => i.id));
+        const missing = batch.blocks.filter((b) => !gotIds.has(b.id)).map((b) => b.id);
+        if (missing.length > 0) failedIds.push(...missing);
         for (const it of items) {
           articleState.results[it.id] = it.natural;
         }
         articleState.doneBatches++;
+        await push('run', `正文翻译中… ${batch.index + 1}/${batches.length} 批`);
         broadcast({ type: 'article_batch', index: batch.index, total: batch.total, items });
         await memoSave(
           items.map((it) => ({
@@ -612,17 +670,34 @@ export async function startArticleTranslate(payload: ArticlePayload): Promise<vo
         );
       }
       articleState.running = false;
+      await push(
+        failedIds.length > 0 ? 'err' : 'done',
+        failedIds.length > 0
+          ? `正文翻译完成，${failedIds.length} 段失败（详见侧边栏）`
+          : `正文翻译完成 ${Object.keys(articleState.results).length} 段，见侧边栏`,
+      );
+      articleState.cacheInfo = {
+        cached: false,
+        reused: reused.length,
+        fresh: pending.length - failedIds.length,
+      };
       await articleCachePut(buildArticleCacheRow(payload, fingerprint, articleState.results));
       broadcast({
         type: 'done',
         channel: 'article',
         ok: true,
-        payload: { cached: false, reused: reused.length, fresh: pending.length },
+        payload: {
+          cached: false,
+          reused: reused.length,
+          fresh: pending.length - failedIds.length,
+          failed: failedIds.length,
+        },
       });
     } catch (err) {
       articleState.running = false;
       const code = err instanceof AiError ? err.code : 'unknown';
       articleState.errorCode = code;
+      await push('err', `正文翻译失败：${code === 'not_configured' ? '请先配置厂商与密钥' : code}`);
       broadcast({
         type: 'done',
         channel: 'article',
@@ -652,7 +727,8 @@ export async function startFullPageTranslate(
   tabId: number | undefined,
 ): Promise<void> {
   cancelFullPageTranslate();
-  const { cfg } = await resolveEndpoint();
+  const { cfg, settings } = await resolveEndpoint();
+  const useJsonMode = settings.api.strictJson;
   if (payload.units.length === 0) throw new AiError('fullpage_empty');
 
   // 译文记忆复用
@@ -674,39 +750,81 @@ export async function startFullPageTranslate(
   }
 
   const batches = splitBlocksIntoBatches(pending);
+  await push({ type: 'FULLPAGE_START', total: batches.length, reused: reused.length });
   if (pending.length === 0) {
-    await push({ type: 'FULLPAGE_DONE', translated: reused.length, highlights: 0, reused: reused.length });
+    await push({
+      type: 'FULLPAGE_DONE',
+      translated: reused.length,
+      highlights: 0,
+      reused: reused.length,
+      failed: 0,
+    });
     return;
   }
 
   const controller = new AbortController();
   fullPageController = controller;
   let highlightCount = 0;
+  let failedUnits = 0;
 
   void (async () => {
     try {
       for (const batch of batches) {
         const prompt = buildFullPageBatchPrompt(payload.title, batch.blocks);
+        await push({
+          type: 'LL_PILL',
+          state: 'run',
+          text: `全文翻译中… 第 ${batch.index + 1}/${batches.length} 批`,
+        });
         const acc = await chatCompletionWithRetry(cfg, {
           messages: [
             { role: 'system', content: prompt.system },
             { role: 'user', content: prompt.user },
           ],
           stream: false,
-          jsonObject: true,
+          jsonObject: useJsonMode,
           signal: controller.signal,
         });
-        const obj = extractJsonObject(acc) as
+        let obj = extractJsonObject(acc) as
           | {
               items?: { id?: unknown; natural?: unknown }[];
               highlights?: { id?: unknown; expr?: unknown; why?: unknown }[];
             }
           | undefined;
-        const items = (Array.isArray(obj?.items) ? obj.items : []).filter(
+        let items = (Array.isArray(obj?.items) ? obj.items : []).filter(
           (it): it is { id: number; natural: string } =>
             typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
         );
-        if (items.length === 0) throw new AiError('parse', '某一批全文翻译返回无法解析，整体中止');
+        if (items.length === 0) {
+          // 一批失败不整体中止：去 JSON 模式重试一次，仍失败标记该批段落失败并继续
+          const retryAcc = await chatCompletionWithRetry(cfg, {
+            messages: [
+              { role: 'system', content: prompt.system },
+              { role: 'user', content: prompt.user + '\n\n注意：只输出 JSON 对象，不要任何其他文字。' },
+            ],
+            stream: false,
+            jsonObject: false,
+            signal: controller.signal,
+          });
+          obj = extractJsonObject(retryAcc) as typeof obj;
+          items = (Array.isArray(obj?.items) ? obj.items : []).filter(
+            (it): it is { id: number; natural: string } =>
+              typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
+          );
+        }
+        if (items.length === 0) {
+          failedUnits += batch.blocks.length;
+          await push({ type: 'FULLPAGE_BATCH_FAILED', ids: batch.blocks.map((b) => b.id) });
+          continue;
+        }
+
+        // 覆盖度校验：漏回的单元显式标失败（页面显示"翻译失败"占位）
+        const gotIds = new Set(items.map((i) => i.id));
+        const missingIds = batch.blocks.filter((b) => !gotIds.has(b.id)).map((b) => b.id);
+        if (missingIds.length > 0) {
+          failedUnits += missingIds.length;
+          await push({ type: 'FULLPAGE_BATCH_FAILED', ids: missingIds });
+        }
 
         // 讲解点：expr 必须是对应单元文本的子串，做防御校验
         const textById = new Map(batch.blocks.map((b) => [b.id, b.text]));
@@ -737,9 +855,10 @@ export async function startFullPageTranslate(
       }
       await push({
         type: 'FULLPAGE_DONE',
-        translated: reused.length + pending.length,
+        translated: reused.length + pending.length - failedUnits,
         highlights: highlightCount,
         reused: reused.length,
+        failed: failedUnits,
       });
     } catch (err) {
       const code = err instanceof AiError ? err.code : 'unknown';

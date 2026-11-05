@@ -60,7 +60,7 @@ export function ArticleView() {
         </div>
         <div className="mt-2">
           <div className="h-1.5 overflow-hidden rounded-full bg-ink-200 dark:bg-ink-800">
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full rounded-full bg-accent-600 transition-all" style={{ width: `${pct}%` }} />
           </div>
           <div className="mt-1 flex items-center justify-between text-[11px] text-ink-400 dark:text-ink-500">
             <span>

@@ -88,77 +88,6 @@ async function openPanel(tabId?: number): Promise<void> {
   }
 }
 
-// ---------- 图标激活入口 ----------
-
-/** 在页面里读取选区快照（ISOLATED world，纯函数随 executeScript 注入） */
-function grabSelectionInPage(): {
-  text?: string;
-  contextBefore?: string;
-  contextAfter?: string;
-  url?: string;
-  title?: string;
-} {
-  const sel = window.getSelection();
-  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return {};
-  const range = sel.getRangeAt(0);
-  const raw = range.toString().replace(/\s+/g, ' ').trim();
-  if (!raw) return {};
-
-  let container: Node = document.body;
-  for (
-    let node: Node | null = range.commonAncestorContainer;
-    node && node !== document.body;
-    node = node.parentNode
-  ) {
-    const len = node.textContent?.length ?? 0;
-    if (len > 0 && len <= 1500) {
-      container = node;
-      break;
-    }
-  }
-  const full = container.textContent ?? '';
-  const idx = full.indexOf(raw);
-  return {
-    text: raw.slice(0, 2000),
-    contextBefore: idx >= 0 ? full.slice(Math.max(0, idx - 300), idx) : '',
-    contextAfter: idx >= 0 ? full.slice(idx + raw.length, idx + raw.length + 300) : '',
-    url: location.href,
-    title: document.title,
-  };
-}
-
-chrome.action.onClicked.addListener((tab) => {
-  void (async () => {
-    if (typeof tab.id !== 'number') return;
-    let snapshot: Snapshot | undefined;
-    let restricted = false;
-    try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: grabSelectionInPage,
-      });
-      const r = results?.[0]?.result as
-        | { text?: string; contextBefore?: string; contextAfter?: string; url?: string; title?: string }
-        | undefined;
-      if (r?.text) {
-        snapshot = {
-          text: r.text,
-          contextBefore: r.contextBefore ?? '',
-          contextAfter: r.contextAfter ?? '',
-          url: r.url ?? '',
-          title: r.title ?? '',
-          source: 'icon-activate',
-        };
-      }
-    } catch {
-      restricted = true; // chrome:// 等受限页
-    }
-    if (snapshot) await setPending(snapshot, 'analyze');
-    else await chrome.storage.session.set({ [RESTRICTED_KEY]: restricted });
-    await openPanel(tab.id);
-  })();
-});
-
 // ---------- Port ----------
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -258,9 +187,11 @@ async function handleMessage(msg: Msg, sender: chrome.runtime.MessageSender): Pr
     }
 
     case 'ARTICLE_TRANSLATE': {
+      const tabId = sender.tab?.id;
+      const pushToTab = (id: number, m: unknown) => chrome.tabs.sendMessage(id, m);
       try {
         await setPendingArticle(msg.payload);
-        await startArticleTranslate(msg.payload);
+        await startArticleTranslate(msg.payload, pushToTab, tabId);
       } catch (err) {
         const code =
           err instanceof Error && 'code' in err ? String((err as { code: unknown }).code) : 'unknown';

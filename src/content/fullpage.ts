@@ -111,11 +111,47 @@ function blockAnchor(el: Element): Element {
 
 // ---------- 注入 ----------
 
+/** SVG 自旋转 spinner（animateTransform，不依赖页面 CSS，CSP 友好） */
+function makeSpinnerNode(label: string): HTMLDivElement {
+  const div = document.createElement('div');
+  div.setAttribute(TAG, '');
+  div.setAttribute('data-ll-loading', '');
+  div.style.cssText =
+    'margin:4px 0 2px;padding-left:8px;border-left:2px solid rgba(37,99,235,.35);font-size:.9em;color:#94a3b8;display:flex;align-items:center;gap:6px;';
+  div.innerHTML =
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none">' +
+    '<circle cx="12" cy="12" r="9" stroke="#dbeafe" stroke-width="3"/>' +
+    '<path d="M21 12a9 9 0 0 0-9-9" stroke="#2563eb" stroke-width="3" stroke-linecap="round">' +
+    '<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path>' +
+    '</svg><span>' +
+    label +
+    '</span>';
+  return div;
+}
+
+const loadingByUnit = new Map<number, HTMLDivElement>();
+
+function injectLoadingPlaceholders(): void {
+  for (const [id, container] of unitContainers) {
+    if (!container.isConnected) continue;
+    const node = makeSpinnerNode('翻译中…');
+    blockAnchor(container).appendChild(node);
+    loadingByUnit.set(id, node);
+  }
+}
+
+function settleUnit(id: number, node: HTMLDivElement): void {
+  const old = loadingByUnit.get(id);
+  old?.remove();
+  loadingByUnit.delete(id);
+  blockAnchor(unitContainers.get(id) ?? (old?.parentElement as Element)).appendChild(node);
+}
+
 function makeTranslationNode(natural: string): HTMLDivElement {
   const div = document.createElement('div');
   div.setAttribute(TAG, '');
   div.style.cssText =
-    'margin:4px 0 2px;padding-left:8px;border-left:2px solid rgba(26,136,255,.45);font-size:.92em;line-height:1.65;color:#9aa7b8;white-space:pre-wrap;';
+    'margin:4px 0 2px;padding-left:8px;border-left:2px solid rgba(37,99,235,.45);font-size:.92em;line-height:1.65;color:#475569;white-space:pre-wrap;';
   div.textContent = natural;
   return div;
 }
@@ -125,8 +161,19 @@ function injectBatch(items: { id: number; natural: string }[]): void {
     const container = unitContainers.get(it.id);
     if (!container || !container.isConnected) continue;
     const node = makeTranslationNode(it.natural);
-    blockAnchor(container).appendChild(node);
+    settleUnit(it.id, node);
     translatedCount++;
+  }
+}
+
+function markFailed(ids: number[]): void {
+  for (const id of ids) {
+    const container = unitContainers.get(id);
+    if (!container || !container.isConnected) continue;
+    const node = makeTranslationNode('');
+    node.style.color = '#b91c1c';
+    node.textContent = '这一段翻译失败（该批返回无法解析）';
+    settleUnit(id, node);
   }
 }
 
@@ -147,7 +194,8 @@ function applyHighlights(highlights: FullPageHighlight[]): void {
       span.setAttribute(TAG, '');
       span.setAttribute('data-ll-term', '');
       span.dataset['why'] = h.why;
-      span.style.cssText = 'border-bottom:1.5px dashed #1a88ff;cursor:pointer;';
+      span.style.cssText =
+        'border-bottom:1.5px dashed #2563eb;cursor:pointer;background:rgba(37,99,235,.06);border-radius:2px;';
       range.surroundContents(span);
     } catch {
       // 包裹失败（跨节点等）直接跳过该讲解点，不影响翻译
@@ -173,20 +221,20 @@ const CARD_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .card {
     position: fixed; z-index: 2147483647; max-width: 320px;
-    background: #1e1e1e; border: 1px solid #2f2f2d; border-radius: 10px;
-    padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.45);
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 12px 14px; box-shadow: 0 8px 28px rgba(15,23,42,.12);
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: #d9d9d4; font-size: 13px; line-height: 1.6;
+    color: #1e293b; font-size: 13px; line-height: 1.6;
   }
-  .expr { color: #4da6ff; font-weight: 600; font-size: 13.5px; margin-bottom: 6px; }
-  .why { color: #b9b9b3; white-space: pre-wrap; }
+  .expr { color: #2563eb; font-weight: 600; font-size: 13.5px; margin-bottom: 6px; }
+  .why { color: #475569; white-space: pre-wrap; }
   .row { display: flex; gap: 6px; margin-top: 10px; }
   button {
-    appearance:none;border:0;background:#2a2a28;color:#d9d9d4;border-radius:6px;
+    appearance:none;border:0;background:#f1f5f9;color:#334155;border-radius:6px;
     padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;
   }
-  button.primary { background: #1a88ff; color: #fff; font-weight: 600; }
-  button:hover { filter: brightness(1.15); }
+  button.primary { background: #2563eb; color: #fff; font-weight: 600; }
+  button:hover { filter: brightness(0.96); }
 `;
 
 function showCard(target: HTMLElement): void {
@@ -281,14 +329,14 @@ function ensurePill(): ShadowRoot {
       :host { all: initial; }
       .pill {
         position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-        z-index: 2147483647; background: #1e1e1e; color: #d9d9d4;
-        border: 1px solid #2f2f2d; border-radius: 999px; padding: 6px 14px;
+        z-index: 2147483647; background: #ffffff; color: #1e293b;
+        border: 1px solid #e2e8f0; border-radius: 999px; padding: 6px 14px;
         font: 12px/1 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-        box-shadow: 0 4px 16px rgba(0,0,0,.4); cursor: pointer; white-space: nowrap;
+        box-shadow: 0 4px 16px rgba(15,23,42,.12); cursor: pointer; white-space: nowrap;
       }
-      .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#1a88ff; margin-right:6px; }
-      .dot.done { background: #30d475; }
-      .dot.err { background: #f0524a; }
+      .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#2563eb; margin-right:6px; }
+      .dot.done { background: #16a34a; }
+      .dot.err { background: #dc2626; }
     </style>
     <div class="pill"><span class="dot"></span><span class="txt">准备中…</span></div>`;
   document.documentElement.appendChild(pillHost);
@@ -313,6 +361,7 @@ function hidePill(): void {
 
 function clearInjection(): void {
   document.querySelectorAll(`[${TAG}]`).forEach((n) => n.remove());
+  loadingByUnit.clear();
   unitContainers = new Map();
   injected = false;
   visible = false;
@@ -350,6 +399,8 @@ export async function toggleFullPage(): Promise<void> {
   visible = true;
   translating = true;
   setPill('run', truncated ? `全文翻译中…（内容过多，已取前 ${FULLPAGE_MAX_CHARS} 字符）` : '全文翻译中…');
+  // 每个段落先放"转圈圈"，批次回来逐个替换为译文——用户全程看得到进度
+  injectLoadingPlaceholders();
   await chrome.runtime
     .sendMessage({
       type: 'FULLPAGE_TRANSLATE',
@@ -371,14 +422,32 @@ export function handleFullPageMessage(msg: unknown): boolean {
     const b = msg as { items: { id: number; natural: string }[]; highlights: FullPageHighlight[] };
     injectBatch(b.items);
     applyHighlights(b.highlights ?? []);
-    setPill('run', `全文翻译中… 已注入 ${translatedCount} 段`);
+    setPill('run', `全文翻译中… 已完成 ${translatedCount}/${unitContainers.size} 段`);
+    return true;
+  }
+  if (m?.type === 'FULLPAGE_BATCH_FAILED') {
+    const f = msg as { ids: number[] };
+    markFailed(f.ids);
+    return true;
+  }
+  if (m?.type === 'LL_PILL') {
+    const pl = msg as { state: 'run' | 'done' | 'err'; text: string };
+    setPill(pl.state, pl.text + (pl.state === 'done' ? '（点击关闭）' : ''));
+    if (pl.state !== 'run') setTimeout(hidePill, 12000);
     return true;
   }
   if (m?.type === 'FULLPAGE_DONE') {
     translating = false;
-    const d = msg as { translated: number; highlights: number; reused: number };
+    const d = msg as { translated: number; highlights: number; reused: number; failed?: number };
+    // 清掉没有等到译文的占位（失败批已在 markFailed 处理）
+    for (const [, node] of loadingByUnit) node.remove();
+    loadingByUnit.clear();
     const reusedPart = d.reused > 0 ? ` · 复用缓存 ${d.reused} 段` : '';
-    setPill('done', `已翻译 ${d.translated} 段 · ${d.highlights} 个讲解点${reusedPart} · 点击关闭`);
+    const failedPart = d.failed ? ` · 失败 ${d.failed} 段` : '';
+    setPill(
+      'done',
+      `已翻译 ${d.translated} 段 · ${d.highlights} 个讲解点${reusedPart}${failedPart} · 点击关闭`,
+    );
     return true;
   }
   if (m?.type === 'FULLPAGE_ERROR') {

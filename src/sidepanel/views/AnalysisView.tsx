@@ -59,6 +59,12 @@ export function AnalysisView() {
       <div className="flex-1 space-y-2.5 overflow-y-auto p-3">
         {activeTab === 'overview' && (
           <>
+            {(st.status === 'running' || st.status === 'streaming') && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                {st.status === 'running' ? '正在精读…（连接模型并分析中）' : '正在接收分析结果…'}
+              </div>
+            )}
             {st.degraded && (
               <div className="rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
                 模型输出未能结构化解析，已展示简化视图。
@@ -234,7 +240,7 @@ function FooterActions() {
         </Btn>
         <CopyBtn text={copyAll} label="复制全文" />
         <div className="flex-1" />
-        {favTip && <span className="text-[11px] text-emerald-600 dark:text-emerald-400">已收藏 ✓</span>}
+        {favTip && <span className="text-[11px] text-accent-600">已收藏 ✓</span>}
         <Btn onClick={() => st.setView('library')} title="打开知识库">
           知识库
         </Btn>

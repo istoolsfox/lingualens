@@ -1,0 +1,247 @@
+/* popup 弹窗主界面 —— 白底单色蓝，克制的现代翻译工具风 */
+:root {
+  --blue: #2563eb;
+  --blue-dark: #1d4ed8;
+  --blue-soft: #eff6ff;
+  --ink: #1e293b;
+  --ink-2: #475569;
+  --ink-3: #94a3b8;
+  --line: #e2e8f0;
+  --bg-soft: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 372px;
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 0;
+}
+
+/* 头部 */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  flex: 1;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.dot.ok {
+  background: #16a34a;
+}
+.dot.err {
+  background: #dc2626;
+}
+
+/* 语言卡 */
+.lang-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.lang-box {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+.lang-arrow {
+  color: var(--ink-3);
+  width: 18px;
+  height: 18px;
+}
+.lang-arrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 主按钮 */
+.main-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  transition: background 0.12s ease;
+}
+.main-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.main-btn:hover {
+  background: var(--blue-dark);
+}
+
+/* 功能 2x2 */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.fn-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.fn-btn:hover {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+.fn-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.fn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.fn-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.fn-label b {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.fn-label i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 提示条 */
+.tip {
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  margin-bottom: 10px;
+}
+.tip.warn {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.tip.ok {
+  background: var(--blue-soft);
+  color: var(--blue-dark);
+  border: 1px solid var(--blue-soft);
+}
+
+/* 底栏 */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  margin: 2px -14px 0;
+  padding: 9px 14px;
+}
+.footer button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+}
+.footer button:hover {
+  color: var(--blue);
+}
+.footer button svg {
+  width: 14px;
+  height: 14px;
+}
+.privacy {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #16a34a;
+}
+.privacy svg {
+  width: 13px;
+  height: 13px;
+}

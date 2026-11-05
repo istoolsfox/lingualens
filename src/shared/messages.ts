@@ -195,6 +195,7 @@ export interface ArticleStateView {
   results: Record<number, string>;
   errorCode?: string;
   truncated?: boolean;
+  cacheInfo?: { cached: boolean; reused: number; fresh: number };
 }
 
 export type PortSwMsg = AnalysisChunkMsg | AnalysisDoneMsg | PendingMsg | PendingArticleMsg | ArticleBatchMsg;

@@ -66,8 +66,8 @@ function roundedRectDist(x, y, size, radius) {
 function render(size) {
   const px = Buffer.alloc(size * size * 4);
   const s = size;
-  const bg = [79, 70, 229]; // indigo-600
-  const bgEdge = [67, 56, 202]; // indigo-700
+  const bg = [37, 99, 235]; // blue-600
+  const bgEdge = [29, 78, 216]; // blue-700
   const white = [255, 255, 255];
   const radius = s * 0.22;
   const cx = s * 0.44;
