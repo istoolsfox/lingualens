@@ -113,6 +113,7 @@ const server = createServer((req, res) => {
         const payload = {
           items: ids.map((id) => ({ id, natural: `【假译文】第 ${id} 段的中文内容，用于端到端验证。` })),
         };
+        payload.terms = [{ en: 'steroids', zh: '强化剂（假术语）' }];
         if (wantsHighlights) {
           // 模拟真实模型：挑一个文本里真的含 'the' 的单元
           const blocks = (() => {

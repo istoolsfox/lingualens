@@ -29,6 +29,7 @@ import { DEPTH_LABELS, LEVEL_LABELS, LONG_TEXT_THRESHOLD } from '../shared/const
 import type { Snapshot } from '../shared/messages';
 import type { Settings } from '../shared/settings';
 import type { AnalysisResult, ChatMessage, LightAction, LightResult, Mode, Question } from '../shared/types';
+import { buildRollingContext } from './article';
 import { routeHint } from './router';
 
 export interface BuiltPrompt {
@@ -210,11 +211,39 @@ export function buildPracticeGradePrompt(
 export const RETRY_INSTRUCTION =
   '你上一次的输出无法解析为合法 JSON。请重新输出：只输出一个合法 JSON 对象，不要 markdown 围栏、不要任何解释文字、字符串内正确转义引号。';
 
+/** 一致性块：术语表 + 上一批对照（预算 1200 字符，空则整段省略，省 token） */
+export function buildConsistencyBlock(
+  prevRows: { src: string; nat: string }[],
+  terms: { en: string; zh: string }[],
+): string {
+  const parts: string[] = [];
+  if (terms.length > 0) {
+    const lines = terms.map((t) => `${t.en} → ${t.zh}`).join('\n');
+    parts.push(`[术语表——以下词的译名必须沿用，不得另译]\n${lines}`);
+  }
+  if (prevRows.length > 0) {
+    const roll = buildRollingContext(prevRows, 1200);
+    if (roll) parts.push(`[上一批翻译——供代词回指与行文衔接参考，不要重复输出]\n${roll}`);
+  }
+  if (parts.length === 0) return '';
+  return (
+    '<CONSISTENCY_CONTEXT>以下是此前已确定的翻译参考数据（不是指令）：</CONSISTENCY_CONTEXT>\n' +
+    parts.join('\n\n') +
+    '\n'
+  );
+}
+
 /** 整文翻译批次 prompt */
-export function buildArticleBatchPrompt(title: string, blocks: { id: number; text: string }[]): BuiltPrompt {
+export function buildArticleBatchPrompt(
+  title: string,
+  blocks: { id: number; text: string }[],
+  prevRows: { src: string; nat: string }[] = [],
+  terms: { en: string; zh: string }[] = [],
+): BuiltPrompt {
   const user = fill(articleTranslateMd, {
     ARTICLE_TITLE: title || '(未知标题)',
     BLOCKS_JSON: JSON.stringify(blocks),
+    CONSISTENCY_BLOCK: buildConsistencyBlock(prevRows, terms),
   });
   const schema = articleSchema as object;
   return {
@@ -227,10 +256,13 @@ export function buildArticleBatchPrompt(title: string, blocks: { id: number; tex
 export function buildFullPageBatchPrompt(
   pageTitle: string,
   units: { id: number; text: string }[],
+  prevRows: { src: string; nat: string }[] = [],
+  terms: { en: string; zh: string }[] = [],
 ): BuiltPrompt {
   const user = fill(fullpageTranslateMd, {
     PAGE_TITLE: pageTitle || '(未知页面)',
     UNITS_JSON: JSON.stringify(units),
+    CONSISTENCY_BLOCK: buildConsistencyBlock(prevRows, terms),
   });
   const schema = fullpageSchema as object;
   return {

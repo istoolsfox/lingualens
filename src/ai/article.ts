@@ -64,3 +64,37 @@ export function planWithMemo(
   }
   return { reused, pending };
 }
+
+/**
+ * 批间滚动上下文：从最近的"原文→译文"行往前装，不超预算字符。
+ * 供下一批参考代词回指与衔接（方案 A：单批滚动，非全史）。
+ */
+export function buildRollingContext(rows: { src: string; nat: string }[], budget: number): string {
+  let out = '';
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    if (!row) break;
+    const line = `${row.src} → ${row.nat}`;
+    const cand = out ? `${line}\n${out}` : line;
+    if (cand.length > budget) break;
+    out = cand;
+  }
+  return out;
+}
+
+/** 术语表去重合并（cap 上限），供跨批累积 */
+export function mergeTerms(
+  acc: { en: string; zh: string }[],
+  incoming: { en?: unknown; zh?: unknown }[],
+  cap = 12,
+): void {
+  for (const t of incoming) {
+    if (typeof t?.en !== 'string' || typeof t?.zh !== 'string') continue;
+    const en = t.en.trim();
+    const zh = t.zh.trim();
+    if (!en || !zh) continue;
+    if (acc.some((x) => x.en.toLowerCase() === en.toLowerCase())) continue;
+    if (acc.length >= cap) break;
+    acc.push({ en, zh });
+  }
+}

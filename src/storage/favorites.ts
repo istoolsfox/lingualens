@@ -26,6 +26,8 @@ export interface ArticleCacheRow {
   updatedAt: number;
   /** fullpage 模式的讲解点缓存（article 模式无） */
   highlights?: { id: number; expr: string; why: string }[];
+  /** 跨批术语表（增量翻沿用，保译名一致） */
+  terms?: { en: string; zh: string }[];
 }
 
 const DB_NAME = 'lingualens';

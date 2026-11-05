@@ -6,8 +6,13 @@
       "items": {
         "type": "object",
         "properties": {
-          "id": { "type": "number", "description": "与输入单元 id 一一对应" },
-          "natural": { "type": "string" }
+          "id": {
+            "type": "number",
+            "description": "与输入单元 id 一一对应"
+          },
+          "natural": {
+            "type": "string"
+          }
         },
         "required": ["id", "natural"]
       }
@@ -17,11 +22,36 @@
       "items": {
         "type": "object",
         "properties": {
-          "id": { "type": "number", "description": "所属单元 id" },
-          "expr": { "type": "string", "description": "原文连续子串" },
-          "why": { "type": "string", "description": "含义 + 为什么这样写" }
+          "id": {
+            "type": "number",
+            "description": "所属单元 id"
+          },
+          "expr": {
+            "type": "string",
+            "description": "原文连续子串"
+          },
+          "why": {
+            "type": "string",
+            "description": "含义 + 为什么这样写"
+          }
         },
         "required": ["id", "expr", "why"]
+      }
+    },
+    "terms": {
+      "type": "array",
+      "description": "本批提炼的关键术语表（3-8 条，供后续批次保持译名一致；无则省略）",
+      "items": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "zh": {
+            "type": "string"
+          }
+        },
+        "required": ["en", "zh"]
       }
     }
   },

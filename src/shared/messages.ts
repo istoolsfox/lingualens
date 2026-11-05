@@ -72,6 +72,7 @@ export interface FullPagePayload {
   title: string;
   units: { id: number; text: string }[];
   truncated?: boolean;
+  mode?: 'article' | 'full';
 }
 
 /** 讲解点：值得解释的表达（注入虚线下划线，点击弹卡） */

@@ -15,7 +15,7 @@ import {
 } from '../ai/promptBuilder';
 import { extractJsonObject, parseAnalysis, parseLight } from '../ai/parser';
 import { guessMode } from '../ai/router';
-import { planWithMemo, splitBlocksIntoBatches } from '../ai/article';
+import { mergeTerms, planWithMemo, splitBlocksIntoBatches } from '../ai/article';
 import { buildArticleBatchPrompt, buildFullPageBatchPrompt } from '../ai/promptBuilder';
 import { pageFingerprint } from '../ai/hash';
 import type {
@@ -595,11 +595,18 @@ export async function startArticleTranslate(
   const controller = new AbortController();
   articleController = controller;
   const failedIds: number[] = [];
+  const termsAcc: { en: string; zh: string }[] = [];
+  if (cached && cached.terms) mergeTerms(termsAcc, cached.terms as { en: string; zh: string }[]);
+  const rollingRows: { src: string; nat: string }[] = [];
+  for (const r of reused) {
+    const src = payload.blocks.find((b) => b.id === r.id)?.text ?? '';
+    rollingRows.push({ src, nat: r.natural });
+  }
 
   void (async () => {
     try {
       for (const batch of batches) {
-        const prompt = buildArticleBatchPrompt(payload.title, batch.blocks);
+        const prompt = buildArticleBatchPrompt(payload.title, batch.blocks, rollingRows.slice(-8), termsAcc);
         const acc = await chatCompletionWithRetry(cfg, {
           messages: [
             { role: 'system', content: prompt.system },
@@ -609,7 +616,12 @@ export async function startArticleTranslate(
           jsonObject: useJsonMode,
           signal: controller.signal,
         });
-        const obj = extractJsonObject(acc) as { items?: { id?: unknown; natural?: unknown }[] } | undefined;
+        const obj = extractJsonObject(acc) as
+          | {
+              items?: { id?: unknown; natural?: unknown }[];
+              terms?: { en?: unknown; zh?: unknown }[];
+            }
+          | undefined;
         const items = (Array.isArray(obj?.items) ? obj.items : []).filter(
           (it): it is { id: number; natural: string } =>
             typeof it?.id === 'number' && typeof it?.natural === 'string' && it.natural.length > 0,
@@ -668,6 +680,14 @@ export async function startArticleTranslate(
             natural: it.natural,
           })),
         );
+        mergeTerms(
+          termsAcc,
+          Array.isArray(obj?.terms) ? (obj?.terms as { en?: unknown; zh?: unknown }[]) : [],
+        );
+        for (const b of batch.blocks) {
+          const nat = articleState.results[b.id];
+          if (nat) rollingRows.push({ src: b.text, nat });
+        }
       }
       articleState.running = false;
       await push(
@@ -731,12 +751,44 @@ export async function startFullPageTranslate(
   const useJsonMode = settings.api.strictJson;
   if (payload.units.length === 0) throw new AiError('fullpage_empty');
 
+  // URL+mode 级缓存：同页同模式内容未变 → 秒出（0 token）；术语表跨会话沿用
+  const cacheKey = `${payload.url}#${payload.mode ?? 'full'}`;
+  const fingerprint = pageFingerprint(payload.units.map((u) => u.text));
+  const cached = await articleCacheGet(cacheKey);
+  if (cached && cached.fingerprint === fingerprint) {
+    const items = cached.blocks
+      .map((b) => ({ id: b.id, natural: cached.translations[b.id] ?? '' }))
+      .filter((i) => i.natural);
+    if (items.length > 0) {
+      await pushToTab(tabId as number, {
+        type: 'FULLPAGE_BATCH',
+        index: 1,
+        total: 1,
+        items,
+        highlights: cached.highlights ?? [],
+      }).catch(() => undefined);
+    }
+    await pushToTab(tabId as number, {
+      type: 'FULLPAGE_DONE',
+      translated: items.length,
+      highlights: cached.highlights?.length ?? 0,
+      reused: items.length,
+      failed: 0,
+      cached: true,
+    }).catch(() => undefined);
+    return;
+  }
+
   // 译文记忆复用
   const memo = await memoLookup(payload.units.map((u) => u.text));
   const { reused, pending } = planWithMemo(payload.units, memo);
   const push = async (msg: unknown) => {
     if (typeof tabId === 'number') await pushToTab(tabId, msg).catch(() => undefined);
   };
+
+  // 跨批一致性（v0.6）：术语表累积（增量翻沿用旧 terms）+ 上一批滚动对照
+  const termsAcc: { en: string; zh: string }[] = [];
+  if (cached && cached.terms) mergeTerms(termsAcc, cached.terms as { en: string; zh: string }[]);
 
   // 记忆命中的部分先推给页面（秒出）
   if (reused.length > 0) {
@@ -766,11 +818,18 @@ export async function startFullPageTranslate(
   fullPageController = controller;
   let highlightCount = 0;
   let failedUnits = 0;
+  const collectedTranslations = new Map<number, string>();
+  const collectedHighlights: FullPageHighlight[] = [];
+  const rollingRows: { src: string; nat: string }[] = [];
+  for (const r of reused) {
+    const src = payload.units.find((u) => u.id === r.id)?.text ?? '';
+    rollingRows.push({ src, nat: r.natural });
+  }
 
   void (async () => {
     try {
       for (const batch of batches) {
-        const prompt = buildFullPageBatchPrompt(payload.title, batch.blocks);
+        const prompt = buildFullPageBatchPrompt(payload.title, batch.blocks, rollingRows.slice(-8), termsAcc);
         await push({
           type: 'LL_PILL',
           state: 'run',
@@ -789,6 +848,7 @@ export async function startFullPageTranslate(
           | {
               items?: { id?: unknown; natural?: unknown }[];
               highlights?: { id?: unknown; expr?: unknown; why?: unknown }[];
+              terms?: { en?: unknown; zh?: unknown }[];
             }
           | undefined;
         let items = (Array.isArray(obj?.items) ? obj.items : []).filter(
@@ -838,6 +898,16 @@ export async function startFullPageTranslate(
           })
           .slice(0, 4);
         highlightCount += highlights.length;
+        collectedHighlights.push(...highlights);
+        mergeTerms(
+          termsAcc,
+          Array.isArray(obj?.terms) ? (obj?.terms as { en?: unknown; zh?: unknown }[]) : [],
+        );
+        for (const it of items) collectedTranslations.set(it.id, it.natural);
+        for (const b of batch.blocks) {
+          const nat = collectedTranslations.get(b.id);
+          if (nat) rollingRows.push({ src: b.text, nat });
+        }
 
         await push({
           type: 'FULLPAGE_BATCH',
@@ -853,6 +923,19 @@ export async function startFullPageTranslate(
           })),
         );
       }
+      // 落缓存：同页同模式内容未变时下次秒出（自动存）
+      await articleCachePut({
+        url: cacheKey,
+        fingerprint,
+        title: payload.title,
+        blocks: payload.units,
+        translations: Object.fromEntries(
+          payload.units.map((u) => [u.id, collectedTranslations.get(u.id) ?? '']).filter(([, v]) => v),
+        ),
+        highlights: collectedHighlights,
+        terms: termsAcc.length > 0 ? termsAcc : undefined,
+        updatedAt: Date.now(),
+      });
       await push({
         type: 'FULLPAGE_DONE',
         translated: reused.length + pending.length - failedUnits,
