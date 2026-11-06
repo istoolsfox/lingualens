@@ -200,7 +200,23 @@ const loadingLeft = await artPage.evaluate(() => document.querySelectorAll('[dat
 check('全文翻译：无残留转圈占位', loadingLeft === 0, `残留 ${loadingLeft}`);
 const termCount = await artPage.evaluate(() => document.querySelectorAll('[data-ll-term]').length);
 // 讲解点仅在"新翻译"时生成；段落全部命中记忆复用时不会重新生成（省 token 设计）
-check('全文翻译：讲解点虚线标注存在（新翻译时）', termCount >= 0, `讲解点 ${termCount}（复用轮为 0 属预期）`);
+check('全文翻译：讲解点虚线标注存在（新翻译时）', termCount >= 1, `讲解点 ${termCount}`);
+// 点击虚线词 → 卡片弹层（Shadow DOM）：头部徽标 + 正文 + 按钮区
+if (termCount > 0) {
+  await artPage.evaluate(() =>
+    document
+      .querySelector('[data-ll-term]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })),
+  );
+  await artPage.waitForTimeout(400);
+  const cardOk = await artPage.evaluate(() =>
+    [...document.querySelectorAll('[data-ll]')].some(
+      (n) => n.shadowRoot && n.shadowRoot.textContent.includes('深度精读'),
+    ),
+  );
+  check('讲解卡卡片化：点击虚线词弹出卡片（头部徽标+正文+按钮区）', cardOk);
+  await shot(artPage, '09-term-card.png');
+}
 await shot(artPage, '04-fullpage-injected.png');
 
 // ---- 4. 二次全文 → 缓存复用（假服务器请求数不增） ----
@@ -243,7 +259,11 @@ await shot(artPage, '05-article-injected.png');
 const countBefore2 = await fetch('http://localhost:18734/count')
   .then((r) => r.json())
   .catch(() => ({ count: -1 }));
-await artPage.evaluate(() => document.querySelectorAll('[data-ll]').forEach((n) => n.remove()));
+await artPage.evaluate(() => {
+  // 与产品清理一致：讲解 span 先解包还原原词，再删注入节点（否则原文丢词 → 指纹变化 → 缓存失效）
+  document.querySelectorAll('[data-ll-term]').forEach((n) => n.replaceWith(...Array.from(n.childNodes)));
+  document.querySelectorAll('[data-ll]').forEach((n) => n.remove());
+});
 await viaTab('DO_TRANSLATE_PAGE', 'article');
 await artPage.waitForTimeout(2500);
 const articleCached = await artPage.evaluate(
@@ -272,6 +292,58 @@ if ((await privacyBtn.count()) > 0) {
 const idleOk = await sidePage.locator('text=选中网页上的英文开始精读').count();
 check('侧边栏可达（idle 态正常）', idleOk >= 1);
 await shot(sidePage, '07-sidepanel.png');
+
+// ---- 8. 无 key 兜底：全新 profile 未配置 → 触发全文 → 立即报错 pill + 零转圈占位 ----
+{
+  const dir2 = mkdtempSync(join(tmpdir(), 'll-e2e-nokey-'));
+  const ctx2 = await chromium.launchPersistentContext(dir2, {
+    headless: false,
+    channel: 'chromium',
+    args: [
+      `--disable-extensions-except=${dist}`,
+      `--load-extension=${dist}`,
+      '--disable-features=DisableLoadExtensionCommandLineSwitch',
+      '--no-first-run',
+      '--no-default-browser-check',
+    ],
+    viewport: { width: 1280, height: 800 },
+  });
+  let extId2 = '';
+  for (let i = 0; i < 30; i++) {
+    const sw = ctx2.serviceWorkers().find((w) => w.url().startsWith('chrome-extension://'));
+    if (sw) {
+      extId2 = new URL(sw.url()).host;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  const p2 = await ctx2.newPage();
+  await p2.goto('http://localhost:18888/');
+  await p2.waitForTimeout(800); // 等 content script 初始化（预检缓存读 storage）
+  const pop2 = await ctx2.newPage();
+  await pop2.goto(`chrome-extension://${extId2}/popup.html`);
+  await pop2.evaluate(
+    (url) =>
+      new Promise((resolve) => {
+        chrome.tabs.query({ url }, (tabs) => {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'DO_FULLPAGE_TOGGLE' }, () => resolve(null));
+        });
+      }),
+    'http://localhost:18888/*',
+  );
+  await p2.waitForTimeout(1500);
+  const noKeyLoading = await p2.evaluate(() => document.querySelectorAll('[data-ll-loading]').length);
+  const noKeyPill = await p2.evaluate(
+    () => document.querySelector('[data-ll]')?.shadowRoot?.textContent ?? '',
+  );
+  check(
+    '无 key 兜底：不注入转圈占位（预检直接报错）',
+    noKeyLoading === 0 && noKeyPill.includes('还没配置 API'),
+    `占位 ${noKeyLoading}，pill="${noKeyPill.slice(0, 30)}"`,
+  );
+  await shot(p2, '08-nokey-error.png');
+  await ctx2.close();
+}
 
 await context.close();
 fixture.close();

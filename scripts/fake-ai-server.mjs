@@ -115,14 +115,7 @@ const server = createServer((req, res) => {
         };
         payload.terms = [{ en: 'steroids', zh: '强化剂（假术语）' }];
         if (wantsHighlights) {
-          // 模拟真实模型：挑一个文本里真的含 'the' 的单元
-          const blocks = (() => {
-            try {
-              return JSON.parse(m?.[0] ?? '[]');
-            } catch {
-              return [];
-            }
-          })();
+          // 模拟真实模型：挑一个文本里真的含 'the' 的单元（blocks 来自上方配平扫描，勿重复解析）
           const hit = blocks.find((b) => typeof b.text === 'string' && b.text.includes('the'));
           if (hit) {
             payload.highlights = [{ id: hit.id, expr: 'the', why: '【假讲解】定冠词，特指前文提到的事物。' }];

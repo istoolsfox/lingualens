@@ -6,7 +6,7 @@
 // ============================================================
 
 import { Readability } from '@mozilla/readability';
-import { FULLPAGE_MAX_CHARS } from '../shared/constants';
+import { ERROR_MESSAGES, FULLPAGE_MAX_CHARS } from '../shared/constants';
 import type { FullPageHighlight } from '../shared/messages';
 import type { HotkeyLike } from './hotkeyTypes';
 
@@ -43,6 +43,7 @@ let visible = false;
 let translating = false;
 let translatedCount = 0;
 let pillHost: HTMLDivElement | null = null;
+let pillState: 'run' | 'done' | 'err' = 'run';
 let cardHost: HTMLDivElement | null = null;
 
 // ---------- 可见性与收集 ----------
@@ -239,20 +240,28 @@ const CARD_CSS = `
   :host { all: initial; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .card {
-    position: fixed; z-index: 2147483647; max-width: 320px;
+    position: fixed; z-index: 2147483647; max-width: 340px; overflow: hidden;
     background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
-    padding: 12px 14px; box-shadow: 0 8px 28px rgba(15,23,42,.12);
+    box-shadow: 0 8px 28px rgba(15,23,42,.12);
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     color: #1e293b; font-size: 13px; line-height: 1.6;
   }
-  .expr { color: #2563eb; font-weight: 600; font-size: 13.5px; margin-bottom: 6px; }
-  .why { color: #475569; white-space: pre-wrap; }
-  .row { display: flex; gap: 6px; margin-top: 10px; }
+  .head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 9px 14px 8px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+  }
+  .badge {
+    flex: none; font-size: 10px; font-weight: 600; color: #2563eb;
+    background: #eff6ff; border-radius: 4px; padding: 2px 6px; letter-spacing: .5px;
+  }
+  .expr { color: #1e293b; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+  .body { padding: 10px 14px 2px; color: #475569; white-space: pre-wrap; }
+  .row { display: flex; gap: 6px; margin: 10px 14px 12px; }
   button {
     appearance:none;border:0;background:#f1f5f9;color:#334155;border-radius:6px;
     padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;
   }
-  button.primary { background: #2563eb; color: #fff; font-weight: 600; }
+  button.primary { background: #2563eb; color: #fff; font-weight: 600; flex: 1; }
   button:hover { filter: brightness(0.96); }
 `;
 
@@ -267,10 +276,11 @@ function showCard(target: HTMLElement): void {
   style.textContent = CARD_CSS;
   const card = document.createElement('div');
   card.className = 'card';
-  card.innerHTML = `<div class="expr"></div><div class="why"></div>
+  card.innerHTML = `<div class="head"><span class="badge">讲解</span><span class="expr"></span></div>
+    <div class="body"></div>
     <div class="row"><button class="primary" data-a="deep">深度精读</button><button data-a="close">关闭</button></div>`;
   (card.querySelector('.expr') as HTMLElement).textContent = expr;
-  (card.querySelector('.why') as HTMLElement).textContent = why;
+  (card.querySelector('.body') as HTMLElement).textContent = why;
   root.append(style, card);
   document.documentElement.appendChild(cardHost);
 
@@ -278,8 +288,8 @@ function showCard(target: HTMLElement): void {
     const act = (e.target as HTMLElement).dataset['a'];
     if (act === 'close') hideCard();
     if (act === 'deep') {
-      // 取该词所在段落文本作上下文，交给侧边栏做完整精读
-      const container = target.closest(`[${TAG}]`)?.previousElementSibling ?? target.closest('p, li, div');
+      // 取该词所在的原文块容器作上下文（term span 自带 data-ll，不能再用 closest(TAG)）
+      const container = target.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, div');
       const ctx = (container?.textContent ?? '').slice(0, 400);
       void chrome.runtime
         .sendMessage({
@@ -305,7 +315,7 @@ function showCard(target: HTMLElement): void {
   let x = rect.left + rect.width / 2 - w / 2;
   x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
   let y = rect.bottom + 8;
-  if (y + 180 > window.innerHeight) y = Math.max(8, rect.top - 190);
+  if (y + 210 > window.innerHeight) y = Math.max(8, rect.top - 220);
   cardEl.style.left = `${Math.round(x)}px`;
   cardEl.style.top = `${Math.round(y)}px`;
   cardEl.style.position = 'fixed';
@@ -359,12 +369,17 @@ function ensurePill(): ShadowRoot {
     </style>
     <div class="pill"><span class="dot"></span><span class="txt">准备中…</span></div>`;
   document.documentElement.appendChild(pillHost);
-  root.querySelector('.pill')?.addEventListener('click', () => clearInjection());
+  // 错误态点击只关提示（保留可能已注入的部分译文）；完成态点击整体清除
+  root.querySelector('.pill')?.addEventListener('click', () => {
+    if (pillState === 'err') hidePill();
+    else clearInjection();
+  });
   return root;
 }
 
 function setPill(state: 'run' | 'done' | 'err', text: string): void {
   const root = ensurePill();
+  pillState = state;
   const dot = root.querySelector('.dot') as HTMLElement;
   const txt = root.querySelector('.txt') as HTMLElement;
   dot.className = `dot ${state === 'run' ? '' : state}`;
@@ -379,6 +394,11 @@ function hidePill(): void {
 // ---------- 注入生命周期 ----------
 
 function clearInjection(): void {
+  // 讲解点 span 包裹的是原文单词——先解包还原原词再删其余注入节点，否则原文丢词
+  document.querySelectorAll(`[${TAG}-term]`).forEach((n) => {
+    const span = n as HTMLElement;
+    span.replaceWith(...Array.from(span.childNodes));
+  });
   document.querySelectorAll(`[${TAG}]`).forEach((n) => n.remove());
   loadingByUnit.clear();
   unitContainers = new Map();
@@ -447,8 +467,18 @@ export async function startPageTranslate(mode: 'article' | 'full'): Promise<void
     setAllVisible(!visible);
     return;
   }
+  // 预检：未配置直接报错结束——页面干干净净，不出现转圈占位（缓存随 storage 变化自动刷新）
+  if (configuredCache === false) {
+    setPill('err', '还没配置 API：先在 LinguaLens 设置里填厂商与密钥（点击关闭）');
+    setTimeout(hidePill, 12000);
+    return;
+  }
   clearInjection();
-  // 先剥离旧注入，正文提取不被自己污染
+  // 再兜底剥离残留注入：讲解点先解包还原原词，正文提取不被污染也不丢词
+  document.querySelectorAll(`[${TAG}-term]`).forEach((n) => {
+    const span = n as HTMLElement;
+    span.replaceWith(...Array.from(span.childNodes));
+  });
   document.querySelectorAll(`[${TAG}]`).forEach((n) => n.remove());
 
   let title = document.title;
@@ -529,12 +559,18 @@ export function handleFullPageMessage(msg: unknown): boolean {
   }
   if (m?.type === 'FULLPAGE_ERROR') {
     translating = false;
+    // 硬失败（无 key / 网络断 / 鉴权失败）：清掉全部转圈占位直接结束，绝不空转
+    for (const [, node] of loadingByUnit) node.remove();
+    loadingByUnit.clear();
+    if (translatedCount === 0) {
+      // 一段译文都没有：整页归零，下次触发重新开始
+      clearInjection();
+    }
     const e = msg as { errorCode: string; errorMessage?: string };
-    const hint =
-      e.errorCode === 'not_configured'
-        ? '请先在 LinguaLens 设置里配置厂商与密钥'
-        : (e.errorMessage ?? e.errorCode);
-    setPill('err', `翻译失败：${hint}（点击关闭）`);
+    const hint = ERROR_MESSAGES[e.errorCode] ?? e.errorMessage ?? e.errorCode;
+    const part = translatedCount > 0 ? `（已完成 ${translatedCount} 段，其余失败）` : '';
+    setPill('err', `翻译失败：${hint}${part}（点击关闭）`);
+    setTimeout(hidePill, 12000);
     return true;
   }
   return false;
@@ -553,15 +589,22 @@ interface HotkeyComboLite {
 
 let hotkeyCache: HotkeyComboLite | null = null;
 let showHighlights = true;
+/** 预检缓存：未配置（厂商/模型/密钥任一缺失）时直接报错结束，不注入转圈占位 */
+let configuredCache: boolean | null = null;
 
 export async function refreshHotkeyCache(): Promise<void> {
   try {
-    const res = await chrome.storage.local.get('ll_settings');
-    const s = (res['ll_settings'] ?? {}) as { ui?: { hotkey?: HotkeyComboLite; showHighlights?: boolean } };
+    const res = await chrome.storage.local.get(['ll_settings', 'll_key_enc']);
+    const s = (res['ll_settings'] ?? {}) as {
+      ui?: { hotkey?: HotkeyComboLite; showHighlights?: boolean };
+      api?: { baseUrl?: string; model?: string };
+    };
     hotkeyCache = s.ui?.hotkey ?? null;
     showHighlights = s.ui?.showHighlights !== false;
+    configuredCache = Boolean(s.api?.baseUrl && s.api?.model && res['ll_key_enc']);
   } catch {
     hotkeyCache = null;
+    configuredCache = null;
   }
 }
 
@@ -585,7 +628,9 @@ function hotkeyMatches(e: KeyboardEvent, h: HotkeyLike): boolean {
 export function initFullPage(): void {
   void refreshHotkeyCache();
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes['ll_settings']) void refreshHotkeyCache();
+    if (area === 'local' && (changes['ll_settings'] || changes['ll_key_enc'])) {
+      void refreshHotkeyCache();
+    }
   });
   document.addEventListener(
     'keydown',
