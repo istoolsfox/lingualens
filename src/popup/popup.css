@@ -1,13 +1,28 @@
-/* popup 弹窗主界面 —— 白底单色蓝，克制的现代翻译工具风 */
+/* ============================================================
+   popup 弹窗主界面 v0.6 —— 设计系统对齐「沉浸式翻译」完成度
+   技法来源：website-styles 变体 H（发丝线代替阴影/品牌色只给主行动）
+   硬约束（8 设计师清单）：
+   - 字号 4 档：15 / 13 / 11 / 10（kbd mono 同 10 档）
+   - 圆角：14 页面级卡与按钮 / 10 独立行 / 8 小图标芯片 / 6 kbd / 999 胶囊
+     （宽幅嵌套遵循 内圆角=外圆角−间距；小芯片豁免，r≈边长 1/4）
+   - 描边 0.5px rgba 发丝线，不用阴影
+   - 字体栈西文在前中文在后（Windows 拉丁字形不再落雅黑）
+   - 颜色纪律：品牌蓝只给 logo + 主 CTA；绿/红只作状态语义；其余灰阶
+   ============================================================ */
+
 :root {
   --blue: #2563eb;
   --blue-dark: #1d4ed8;
-  --blue-soft: #eff6ff;
   --ink: #1e293b;
-  --ink-2: #475569;
+  --ink-2: #64748b;
   --ink-3: #94a3b8;
-  --line: #e2e8f0;
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.16);
   --bg-soft: #f8fafc;
+  --font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 * {
@@ -18,7 +33,7 @@
 
 body {
   width: 372px;
-  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font);
   font-size: 13px;
   color: var(--ink);
   background: #fff;
@@ -27,19 +42,19 @@ body {
 .wrap {
   display: flex;
   flex-direction: column;
-  padding: 12px 14px 0;
+  padding: 14px 14px 0;
 }
 
-/* 头部 */
+/* ---- 头部：logo + 名称 + 连接状态 ---- */
 .header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 12px;
+  gap: 9px;
+  padding-bottom: 14px;
 }
 .logo {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   background: var(--blue);
   color: #fff;
@@ -74,124 +89,117 @@ body {
   background: #dc2626;
 }
 
-/* 语言卡 */
-.lang-card {
+/* ---- 语言对：两枚独立灰底盒（不做盒中盒，规避嵌套圆角） ---- */
+.lang-pair {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .lang-box {
   flex: 1;
-  text-align: center;
-  font-weight: 600;
+  background: var(--bg-soft);
+  border: 0.5px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
   font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .lang-arrow {
   color: var(--ink-3);
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .lang-arrow svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
-/* 连接卡（v0.5：厂商/模型/Key 直接搬进来） */
-.conn-card {
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px;
-  margin-bottom: 10px;
+/* ---- 模型行：一枚独立行（点击进设置） ---- */
+.model-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
+  background: var(--bg-soft);
+  border: 0.5px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
 }
-.conn-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative;
+.model-row:hover {
+  border-color: var(--line-strong);
 }
-.input {
+.model-ic {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+  flex: none;
+}
+.model-ic svg {
+  width: 16px;
+  height: 16px;
+}
+.model-name {
   flex: 1;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12.5px;
-  font-family: inherit;
-  outline: none;
-  background: #fff;
-  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.input:focus {
-  border-color: var(--blue);
+.model-name.empty {
+  color: #dc2626;
+  font-weight: 400;
 }
-select.input {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 28px;
-}
-.key-state {
-  position: absolute;
-  right: 10px;
-  width: 14px;
-  height: 14px;
-  color: #16a34a;
-  pointer-events: none;
-}
-.key-state svg {
-  width: 14px;
-  height: 14px;
+.model-action {
+  font-size: 11px;
+  color: var(--ink-3);
+  flex: none;
 }
 
-/* 快捷键行（显著化：蓝底白字胶囊） */
-.hotkey-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding: 0 2px;
-}
+/* ---- kbd 键位芯片 ---- */
 .kbd {
   display: inline-flex;
   align-items: center;
-  background: var(--blue);
-  color: #fff;
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
+  font-family: var(--mono);
+  font-size: 10px;
   font-weight: 600;
   border-radius: 6px;
-  padding: 3px 8px;
+  padding: 2px 6px;
   white-space: nowrap;
+  line-height: 1.4;
 }
-.hk-label {
-  font-size: 11.5px;
+/* 蓝底 CTA 内：白色半透明芯片 */
+.kbd.on-blue {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+/* 普通底上：灰底发丝线 */
+.kbd.plain {
+  background: var(--bg-soft);
+  border: 0.5px solid var(--line);
   color: var(--ink-2);
-  margin-right: 4px;
-}
-.hk-sep {
-  flex: 1;
 }
 
-/* 主按钮 */
+/* ---- 主 CTA ---- */
 .main-btn {
   appearance: none;
   border: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--blue);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
-  padding: 13px;
+  font-family: var(--font);
+  padding: 13px 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -201,14 +209,17 @@ select.input {
   transition: background 0.12s ease;
 }
 .main-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
+}
+.main-btn .kbd {
+  margin-left: 2px;
 }
 .main-btn:hover {
   background: var(--blue-dark);
 }
 
-/* 功能 2x2 */
+/* ---- 功能 2x2 ---- */
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -217,103 +228,109 @@ select.input {
 }
 .fn-btn {
   appearance: none;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 0.5px solid var(--line);
+  border-radius: 14px;
   background: #fff;
-  padding: 10px 12px;
+  padding: 11px 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 9px;
   text-align: left;
+  font-family: var(--font);
   transition:
     border-color 0.12s ease,
     background 0.12s ease;
 }
 .fn-btn:hover {
-  border-color: var(--blue);
-  background: var(--blue-soft);
+  border-color: var(--line-strong);
+  background: var(--bg-soft);
 }
 .fn-icon {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: var(--blue-soft);
-  color: var(--blue);
+  background: var(--bg-soft);
+  border: 0.5px solid var(--line);
+  color: var(--ink-2);
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
 }
+.fn-btn:hover .fn-icon {
+  background: #fff;
+}
 .fn-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 .fn-label {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 .fn-label b {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
 }
-.fn-label i {
-  font-style: normal;
-  font-size: 10.5px;
+.fn-label .hint {
+  font-size: 11px;
   color: var(--ink-3);
-}
-.disabled {
-  opacity: 0.45;
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-/* 提示条 */
+/* ---- 提示条 ---- */
 .tip {
-  border-radius: 8px;
-  padding: 7px 10px;
-  font-size: 11.5px;
+  border-radius: 10px;
+  border: 0.5px solid var(--line);
+  padding: 8px 11px;
+  font-size: 11px;
   margin-bottom: 10px;
 }
 .tip.warn {
   background: #fffbeb;
   color: #b45309;
-  border: 1px solid #fde68a;
+  border-color: rgba(180, 83, 9, 0.25);
 }
 .tip.ok {
-  background: var(--blue-soft);
+  background: var(--bg-soft);
   color: var(--blue-dark);
-  border: 1px solid var(--blue-soft);
 }
 
-/* 底栏 */
+/* ---- 底栏 ---- */
 .footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid var(--line);
+  border-top: 0.5px solid var(--line);
   margin: 2px -14px 0;
-  padding: 9px 14px;
+  padding: 10px 14px;
 }
 .footer button {
   appearance: none;
   border: 0;
   background: transparent;
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 5px;
-  font-family: inherit;
+  font-family: var(--font);
 }
 .footer button:hover {
-  color: var(--blue);
+  color: var(--ink);
 }
 .footer button svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 .privacy {
   display: flex;
@@ -323,6 +340,6 @@ select.input {
   color: #16a34a;
 }
 .privacy svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
 }

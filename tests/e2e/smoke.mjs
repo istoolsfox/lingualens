@@ -141,7 +141,7 @@ check(
   `连接卡 ${hasConnCard}，宫格按钮 ${gridBtns}`,
 );
 const kbdCount = await popupPage.locator('.kbd').count();
-check('快捷键显著化（蓝底胶囊×2）', kbdCount === 2, `kbd ${kbdCount}`);
+check('快捷键显著化（键位芯片×2：CTA 内嵌 + 文章按钮）', kbdCount === 2, `kbd ${kbdCount}`);
 
 // ---- 3. fixture 页全文翻译（含转圈占位与注入） ----
 const artPage = await context.newPage();

@@ -34,6 +34,19 @@ export default {
       borderRadius: {
         DEFAULT: '6px',
       },
+      fontFamily: {
+        // 中文排版纪律：西文字体在前，中文字体在后，sans-serif 兜底
+        // （缺 Segoe UI 时 Windows 的拉丁字形会落进雅黑，观感明显掉档）
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          '"PingFang SC"',
+          '"Hiragino Sans GB"',
+          '"Microsoft YaHei"',
+          'sans-serif',
+        ],
+      },
     },
   },
   plugins: [],

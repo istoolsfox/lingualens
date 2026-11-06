@@ -102,9 +102,9 @@ const BAR_CSS = `
   .bar {
     position: fixed; z-index: 2147483647;
     display: flex; align-items: center; gap: 2px;
-    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
+    background: #ffffff; border: 0.5px solid rgba(15,23,42,.14); border-radius: 10px;
     padding: 4px; box-shadow: 0 6px 20px rgba(15,23,42,.14);
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     opacity: 0; transform: translateY(2px); transition: opacity .12s ease, transform .12s ease;
   }
   .bar.show { opacity: 1; transform: translateY(0); }

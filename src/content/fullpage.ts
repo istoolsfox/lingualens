@@ -241,27 +241,28 @@ const CARD_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .card {
     position: fixed; z-index: 2147483647; max-width: 340px; overflow: hidden;
-    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    background: #ffffff; border: 0.5px solid rgba(15,23,42,.14); border-radius: 14px;
     box-shadow: 0 8px 28px rgba(15,23,42,.12);
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     color: #1e293b; font-size: 13px; line-height: 1.6;
   }
   .head {
     display: flex; align-items: center; gap: 7px;
-    padding: 9px 14px 8px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    padding: 9px 14px 8px; background: #f8fafc; border-bottom: 0.5px solid rgba(15,23,42,.08);
   }
   .badge {
-    flex: none; font-size: 10px; font-weight: 600; color: #2563eb;
-    background: #eff6ff; border-radius: 4px; padding: 2px 6px; letter-spacing: .5px;
+    flex: none; font-size: 10px; font-weight: 600; color: #64748b;
+    background: #f1f5f9; border: 0.5px solid rgba(15,23,42,.08); border-radius: 6px;
+    padding: 1px 6px; letter-spacing: .5px;
   }
   .expr { color: #1e293b; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
   .body { padding: 10px 14px 2px; color: #475569; white-space: pre-wrap; }
   .row { display: flex; gap: 6px; margin: 10px 14px 12px; }
   button {
-    appearance:none;border:0;background:#f1f5f9;color:#334155;border-radius:6px;
-    padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;
+    appearance:none;border:0;background:#f1f5f9;color:#334155;border-radius:8px;
+    padding:6px 10px;font-size:11px;cursor:pointer;font-family:inherit;
   }
-  button.primary { background: #2563eb; color: #fff; font-weight: 600; flex: 1; }
+  button.primary { background: #2563eb; color: #fff; font-weight: 600; flex: 1; font-size: 12px; }
   button:hover { filter: brightness(0.96); }
 `;
 
@@ -359,8 +360,8 @@ function ensurePill(): ShadowRoot {
       .pill {
         position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
         z-index: 2147483647; background: #ffffff; color: #1e293b;
-        border: 1px solid #e2e8f0; border-radius: 999px; padding: 6px 14px;
-        font: 12px/1 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+        border: 0.5px solid rgba(15,23,42,.14); border-radius: 999px; padding: 7px 14px;
+        font: 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
         box-shadow: 0 4px 16px rgba(15,23,42,.12); cursor: pointer; white-space: nowrap;
       }
       .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#2563eb; margin-right:6px; }
@@ -422,8 +423,17 @@ export async function toggleFullPage(): Promise<void> {
 
 // ---------- 正文容器定位（article 模式） ----------
 
-/** 启发式正文容器：article/main 优先，取文本量最大者 */
+/** 启发式正文容器：article/main 优先，取文本量最大者。
+ * 占比守门：候选容器必须持有全页 ≥20% 的文字，否则视为"本页没有正文容器"回落整页。
+ * 真实案例（HN 讨论帖 50376313）：兜底曾抓到第一条评论的 commtext（仅占全页 1%，
+ * 800/65293 字）→"文章翻译"只翻第一条评论的 4 段，其余 179 条评论全不动。 */
 function heuristicArticleRoot(): Element | null {
+  const bodyLen = (document.body.textContent ?? '').length;
+  const majority = (el: Element | null): boolean => {
+    if (!el) return false;
+    const len = (el.textContent ?? '').length;
+    return len >= 500 && bodyLen > 0 && len / bodyLen >= 0.2;
+  };
   const candidates = [
     ...document.querySelectorAll(
       'article, main, [role="main"], #content, .post, .post-content, .article, .article-content, .entry-content',
@@ -438,11 +448,11 @@ function heuristicArticleRoot(): Element | null {
       bestLen = len;
     }
   }
-  if (best && bestLen >= 500) return best;
+  if (majority(best)) return best;
   const ps = [...document.querySelectorAll('p')].filter((p) => (p.textContent ?? '').trim().length > 40);
   if (ps.length >= 3) {
     const parent = ps[0]?.parentElement;
-    if (parent && (parent.textContent ?? '').length >= 500) return parent;
+    if (parent && majority(parent)) return parent;
   }
   return null;
 }
@@ -539,22 +549,33 @@ export function handleFullPageMessage(msg: unknown): boolean {
   }
   if (m?.type === 'LL_PILL') {
     const pl = msg as { state: 'run' | 'done' | 'err'; text: string };
-    setPill(pl.state, pl.text + (pl.state === 'done' ? '（点击关闭）' : ''));
-    if (pl.state !== 'run') setTimeout(hidePill, 12000);
+    setPill(pl.state, pl.text);
+    // 完成即走 2 秒；错误停留 12 秒让人看清原因
+    if (pl.state === 'done') setTimeout(hidePill, 2000);
+    if (pl.state === 'err') setTimeout(hidePill, 12000);
     return true;
   }
   if (m?.type === 'FULLPAGE_DONE') {
     translating = false;
-    const d = msg as { translated: number; highlights: number; reused: number; failed?: number };
+    const d = msg as {
+      translated: number;
+      highlights: number;
+      reused: number;
+      failed?: number;
+      truncated?: boolean;
+    };
     // 清掉没有等到译文的占位（失败批已在 markFailed 处理）
     for (const [, node] of loadingByUnit) node.remove();
     loadingByUnit.clear();
-    const reusedPart = d.reused > 0 ? ` · 复用缓存 ${d.reused} 段` : '';
-    const failedPart = d.failed ? ` · 失败 ${d.failed} 段` : '';
+    const reusedPart = d.reused > 0 ? ` · 复用 ${d.reused}` : '';
+    const failedPart = d.failed ? ` · 失败 ${d.failed}` : '';
+    const truncPart = d.truncated ? `（长页面已截断：仅前 ${FULLPAGE_MAX_CHARS} 字符）` : '';
     setPill(
       'done',
-      `已翻译 ${d.translated} 段 · ${d.highlights} 个讲解点${reusedPart}${failedPart} · 点击关闭`,
+      `已翻译 ${d.translated} 段 · ${d.highlights} 个讲解点${reusedPart}${failedPart}${truncPart}`,
     );
+    // 完成即走：2 秒自动消失；截断提示需要时间读，停 8 秒
+    setTimeout(hidePill, d.truncated ? 8000 : 2000);
     return true;
   }
   if (m?.type === 'FULLPAGE_ERROR') {

@@ -1,10 +1,12 @@
 // ============================================================
-// popup/main.ts —— 弹窗主界面 v0.5：连接配置直接搬进来
-// 厂商/模型/密钥三行改完即用（自动保存）；翻译按钮两级；删四宫格
+// popup/main.ts —— 弹窗主界面 v0.6：对齐沉浸式翻译完成度
+// 布局：头部状态 / 语言对双盒 / 模型行（点击进设置）/ CTA 内嵌快捷键 /
+//       四宫格 / 底栏。设计 token 见 popup.css 头注（4 档字号 + 发丝线 + 颜色纪律）
 // ============================================================
 
 import './popup.css';
 import { DEFAULT_SETTINGS, formatHotkey, type Settings } from '../shared/settings';
+import { PROVIDER_PRESETS } from '../shared/providers';
 
 const I = {
   languages:
@@ -23,8 +25,7 @@ const I = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>',
   arrow:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
-  check:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -61,7 +62,7 @@ async function main(): Promise<void> {
 
   const app = el('div', 'wrap');
 
-  // ---- 头部 ----
+  // ---- 头部：logo + 状态 ----
   const header = el('div', 'header');
   header.innerHTML = `
     <div class="logo">L</div>
@@ -69,41 +70,50 @@ async function main(): Promise<void> {
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">检查中…</span></div>`;
   app.appendChild(header);
 
-  // ---- 语言卡 ----
-  const lang = el('div', 'lang-card');
-  lang.innerHTML = `
-    <div class="lang-box">英语 English</div>
+  // ---- 语言对（双盒 + 箭头） ----
+  const langPair = el('div', 'lang-pair');
+  langPair.innerHTML = `
+    <div class="lang-box">英语</div>
     <div class="lang-arrow">${I.arrow}</div>
     <div class="lang-box">简体中文</div>`;
-  app.appendChild(lang);
+  app.appendChild(langPair);
 
-  // ---- 主按钮：全文翻译 ----
+  // ---- 模型行（点击进设置） ----
+  const configured = Boolean(settings.api.baseUrl && settings.api.model && hasKey);
+  const preset = PROVIDER_PRESETS.find((p) => settings.api.baseUrl.startsWith(p.baseUrl));
+  const providerName = (preset?.name ?? '自定义').replace(/（.*?）/g, '');
+  const modelRow = el('button', 'model-row');
+  modelRow.id = 'model-row';
+  modelRow.innerHTML = `<span class="model-ic">${I.cpu}</span><span class="model-name"></span><span class="model-action">更换</span>`;
+  const modelName = modelRow.querySelector('.model-name') as HTMLElement;
+  if (configured) {
+    modelName.textContent = `${providerName} · ${settings.api.model}`;
+  } else {
+    modelName.classList.add('empty');
+    modelName.textContent = '还没配置模型 · 点击去设置';
+  }
+  app.appendChild(modelRow);
+
+  // ---- 主 CTA：全文翻译（内嵌快捷键芯片） ----
   const mainBtn = el('button', 'main-btn');
-  mainBtn.innerHTML = `${I.languages}<span>全文翻译页面</span>`;
+  mainBtn.innerHTML = `${I.languages}<span>全文翻译页面</span><span class="kbd on-blue">${formatHotkey(settings.ui.hotkey, isMac)}</span>`;
   mainBtn.id = 'btn-fullpage';
   app.appendChild(mainBtn);
 
-  // ---- 四宫格（恢复 v0.4 布局） ----
+  // ---- 四宫格 ----
   const grid = el('div', 'grid');
-  const mkBtn = (id: string, icon: string, label: string, hint: string) => {
+  const mkBtn = (id: string, icon: string, label: string, hintHtml: string) => {
     const b = el('button', 'fn-btn');
     b.id = id;
-    b.innerHTML = `<span class="fn-icon">${icon}</span><span class="fn-label"><b>${label}</b><i>${hint}</i></span>`;
+    b.innerHTML = `<span class="fn-icon">${icon}</span><span class="fn-label"><b>${label}</b><span class="hint">${hintHtml}</span></span>`;
     return b;
   };
-  grid.appendChild(mkBtn('btn-article', I.fileText, '文章翻译', '智能提取正文·注入对照'));
+  const cmdKbd = `<span class="kbd plain">${isMac ? '⌘⇧L' : 'Alt+L'}</span>`;
+  grid.appendChild(mkBtn('btn-article', I.fileText, '文章翻译', `智能提取正文 ${cmdKbd}`));
   grid.appendChild(mkBtn('btn-select', I.scanText, '划词精读', '选中内容深度讲解'));
   grid.appendChild(mkBtn('btn-panel', I.panelRight, '打开侧边栏', '精读工作台'));
   grid.appendChild(mkBtn('btn-practice', I.bookOpen, '练习复习', '基于你的收藏'));
   app.appendChild(grid);
-
-  // ---- 快捷键提示（显著化：蓝底胶囊） ----
-  const hotkeyRow = el('div', 'hotkey-row');
-  hotkeyRow.innerHTML = `
-    <span class="kbd">${isMac ? '⌘⇧L' : 'Alt + L'}</span><span class="hk-label">翻译本文</span>
-    <span class="hk-sep"></span>
-    <span class="kbd">${formatHotkey(settings.ui.hotkey, isMac)}</span><span class="hk-label">全文翻译</span>`;
-  app.appendChild(hotkeyRow);
 
   // ---- 提示条 ----
   const tip = el('div', 'tip');
@@ -121,7 +131,6 @@ async function main(): Promise<void> {
   document.body.appendChild(app);
 
   // ---- 状态与动作 ----
-  const configured = Boolean(settings.api.baseUrl && settings.api.model && hasKey);
   const dot = document.getElementById('dot') as HTMLElement;
   const statusText = document.getElementById('statusText') as HTMLElement;
   dot.className = `dot ${configured ? 'ok' : 'err'}`;
@@ -140,7 +149,7 @@ async function main(): Promise<void> {
   };
   const guard = (): boolean => {
     if (!configured) {
-      showTip('先在上面填好厂商、模型和密钥');
+      showTip('先在上面点模型行，填好厂商与密钥');
       return false;
     }
     if (!injectable) {
@@ -202,6 +211,11 @@ async function main(): Promise<void> {
     if (typeof tabId !== 'number') return;
     await chrome.storage.session.set({ ll_open_view: 'practice' });
     await chrome.sidePanel.open({ tabId });
+    window.close();
+  });
+  // 模型行与设置按钮都进设置页
+  modelRow.addEventListener('click', () => {
+    void chrome.runtime.openOptionsPage();
     window.close();
   });
   (document.getElementById('btn-settings') as HTMLButtonElement).addEventListener('click', () => {

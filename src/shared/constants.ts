@@ -15,8 +15,8 @@ export const LONG_TEXT_THRESHOLD = 4000;
 export const ARTICLE_BATCH_CHARS = 2400;
 /** 整文翻译：正文总字符上限 */
 export const ARTICLE_MAX_CHARS = 60000;
-/** 全文注入翻译：文本总量上限 */
-export const FULLPAGE_MAX_CHARS = 50000;
+/** 全文注入翻译：文本总量上限（HN 180 评论级讨论帖约 6.5 万字符，8 万覆盖绝大多数页面） */
+export const FULLPAGE_MAX_CHARS = 80000;
 
 /** 应用内自定义快捷键默认组合（Ctrl/Cmd + Alt + L，触发全文翻译注入） */
 export const DEFAULT_HOTKEY = {

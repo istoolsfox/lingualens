@@ -774,6 +774,7 @@ export async function startFullPageTranslate(
       highlights: cached.highlights?.length ?? 0,
       reused: items.length,
       failed: 0,
+      truncated: payload.truncated,
       cached: true,
     }).catch(() => undefined);
     return;
@@ -810,6 +811,7 @@ export async function startFullPageTranslate(
       highlights: 0,
       reused: reused.length,
       failed: 0,
+      truncated: payload.truncated,
     });
     return;
   }
@@ -942,6 +944,7 @@ export async function startFullPageTranslate(
         highlights: highlightCount,
         reused: reused.length,
         failed: failedUnits,
+        truncated: payload.truncated,
       });
     } catch (err) {
       const code = err instanceof AiError ? err.code : 'unknown';
