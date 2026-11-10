@@ -7,6 +7,7 @@
 
 import { Readability } from '@mozilla/readability';
 import { ERROR_MESSAGES, FULLPAGE_MAX_CHARS } from '../shared/constants';
+import { mergeSettings } from '../shared/settings';
 import type { FullPageHighlight } from '../shared/messages';
 import type { HotkeyLike } from './hotkeyTypes';
 
@@ -616,13 +617,12 @@ let configuredCache: boolean | null = null;
 export async function refreshHotkeyCache(): Promise<void> {
   try {
     const res = await chrome.storage.local.get(['ll_settings', 'll_key_enc']);
-    const s = (res['ll_settings'] ?? {}) as {
-      ui?: { hotkey?: HotkeyComboLite; showHighlights?: boolean };
-      api?: { baseUrl?: string; model?: string };
-    };
-    hotkeyCache = s.ui?.hotkey ?? null;
-    showHighlights = s.ui?.showHighlights !== false;
-    configuredCache = Boolean(s.api?.baseUrl && s.api?.model && res['ll_key_enc']);
+    // 必须合并默认值：全新安装（从未保存过设置）时 ui.hotkey 不存在，
+    // 不合并会导致热键缓存为 null、快捷键永不触发
+    const s = mergeSettings(res['ll_settings']);
+    hotkeyCache = s.ui.hotkey ?? null;
+    showHighlights = s.ui.showHighlights !== false;
+    configuredCache = Boolean(s.api.baseUrl && s.api.model && res['ll_key_enc']);
   } catch {
     hotkeyCache = null;
     configuredCache = null;

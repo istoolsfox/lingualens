@@ -68,7 +68,9 @@ const server = createServer((req, res) => {
       let content;
       if (userMsg.includes('翻译失败')) {
         content = JSON.stringify({ items: [] }); // 诊断诱饵：不该被任何路径命中
-      } else if (userMsg.includes('"items"') && userMsg.includes('natural')) {
+      } else if (userMsg.includes('<PARAGRAPHS>') || userMsg.includes('<UNITS>')) {
+        // 翻译批（整文/全文）独有标记——不能用 "items"/"natural" 判断：
+        // 分析 schema 的 JSON Schema 数组关键字也是 "items"，会误劫持分析请求
         console.log(
           '[fake] 翻译批 blocks:',
           (userMsg.match(/<PARAGRAPHS>([\s\S]*?)<\/PARAGRAPHS>/) ??
@@ -163,7 +165,8 @@ const server = createServer((req, res) => {
   res.end('not found');
 });
 
-server.listen(18734, () => console.log('fake-ai-server on :18734'));
+const PORT = Number(process.argv.find((a) => a.startsWith('--port='))?.split('=')[1] ?? 18734);
+server.listen(PORT, () => console.log(`fake-ai-server on :${PORT}`));
 
 // 请求数查询（E2E 断言缓存复用用）
 process.on('SIGUSR2', () => {

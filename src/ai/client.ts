@@ -35,6 +35,23 @@ export interface ChatOptions {
 
 const CHAT_PATH = '/chat/completions';
 
+/** 可插拔 HTTP 传输：油猴等无 CORS 环境注入 GM_xmlhttpRequest（仅非流式），扩展默认 null 走 fetch */
+export interface HttpResponseLike {
+  ok: boolean;
+  status: number;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+}
+type HttpTransport = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body: string },
+  timeoutMs: number,
+) => Promise<HttpResponseLike>;
+let httpTransport: HttpTransport | null = null;
+export function setHttpTransport(t: HttpTransport | null): void {
+  httpTransport = t;
+}
+
 function endpointUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, '');
   if (!trimmed) throw new AiError('not_configured');
@@ -109,13 +126,34 @@ export async function chatCompletion(cfg: EndpointConfig, opts: ChatOptions): Pr
     };
     if (opts.jsonObject) body.response_format = { type: 'json_object' };
 
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${cfg.apiKey}`,
+    };
+    const payload = JSON.stringify(body);
+
+    // 注入了可插拔传输（油猴）：只支持非流式，一次性返回全文
+    if (httpTransport) {
+      if (opts.stream) throw new AiError('network', '当前传输通道不支持流式');
+      const res = await httpTransport(endpointUrl(cfg.baseUrl), {
+        method: 'POST',
+        headers,
+        body: payload,
+      }, Math.max(cfg.timeoutMs, 5000));
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new AiError(classifyStatus(res.status), extractServerMessage(text));
+      }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const content = data.choices?.[0]?.message?.content ?? '';
+      if (!content) throw new AiError('empty');
+      return content;
+    }
+
     const res = await fetch(endpointUrl(cfg.baseUrl), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.apiKey}`,
-      },
-      body: JSON.stringify(body),
+      headers,
+      body: payload,
       signal: hub.signal,
     });
 

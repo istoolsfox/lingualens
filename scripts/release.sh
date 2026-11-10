@@ -15,6 +15,7 @@ echo "▸ 发布版本 v${version}"
 
 pnpm build
 node scripts/zip.mjs
+pnpm build:userscript
 
 zip_path="${root}/output/lingualens-v${version}.zip"
 [ -f "${zip_path}" ] || { echo "❌ 未找到产物 ${zip_path}"; exit 1; }
@@ -27,7 +28,13 @@ printf '{"version":"%s","url":"https://toolsfox.top/downloads/lingualens-latest.
 scp "${root}/output/lingualens-version.json" "toolsfox:/tmp/lingualens-version.json"
 ssh toolsfox "sudo mv /tmp/lingualens-version.json /var/www/downloads/lingualens-version.json && sudo chmod 644 /var/www/downloads/lingualens-version.json"
 
+# 油猴版（Greasy Fork/脚本猫用户可直接从固定链接安装/更新）
+scp "${root}/dist-userscript/lingualens-lite.user.js" "toolsfox:/tmp/lingualens-lite.user.js"
+ssh toolsfox "sudo mv /tmp/lingualens-lite.user.js /var/www/downloads/lingualens-lite.user.js && sudo chmod 644 /var/www/downloads/lingualens-lite.user.js"
+
 echo "▸ 服务器校验："
 curl -fsS "https://toolsfox.top/downloads/lingualens-version.json"
 echo ""
+echo "▸ 油猴脚本校验："
+curl -fsS -o /dev/null -w "lingualens-lite.user.js → %{http_code}\n" "https://origin.toolsfox.top/downloads/lingualens-lite.user.js"
 echo "✅ v${version} 发布完成"

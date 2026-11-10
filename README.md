@@ -51,7 +51,24 @@
 
 要求 Chrome 114+（Side Panel API）。免安装更新见[自动更新](#自动更新免删除重装)。
 
-### 方式二：从源码构建
+### 方式二：油猴 / 脚本猫（Lite 版，无需扩展权限）
+
+不想装扩展？**LinguaLens Lite** 用户脚本版保留核心三件套：划词精读、整页注入对照翻译、讲解卡（无侧边栏工作台/练习/知识库 UI，其余逻辑与扩展同源）。
+
+1. 先装 [Tampermonkey 油猴](https://www.tampermonkey.net/)（Chrome/Edge/Firefox/Safari 均可）或 [ScriptCat 脚本猫](https://scriptcat.org/)
+2. 安装脚本（二选一）：
+   - 直装链接：<https://origin.toolsfox.top/downloads/lingualens-lite.user.js>（脚本管理器自动弹安装页；橙云 CF 会拦 .user.js 路径，故直装走灰云子域）
+   - 或从 <https://github.com/istoolsfox/lingualens> 仓库 `dist-userscript/lingualens-lite.user.js` 手动导入
+3. 脚本管理器菜单 →「⚙ LinguaLens 设置」→ 选厂商贴密钥
+4. 选中网页英文 → 浮动栏「AI 精读 / 翻译 / 解释 / 全文」
+
+说明：
+
+- **密钥同样 AES-256-GCM 加密**存于脚本管理器存储（与扩展同一段加密代码）；数据仅存本机
+- 跨域直连靠 `GM_xmlhttpRequest`，脚本头已声明 8 家预设厂商域名；**用自定义厂商需自行在脚本头加一行 `@connect <你的API域名>`** 后更新脚本
+- 想上架 Greasy Fork / 脚本猫市场的用户：脚本已符合其源码可读与 @connect 规范，可直接发布（欢迎自行发，或提 Issue 通知我们统一维护）
+
+### 方式三：从源码构建
 
 ```bash
 git clone https://github.com/istoolsfox/lingualens.git
@@ -107,6 +124,8 @@ pnpm icons          # 重新生成图标
 pnpm zip            # 打包 dist → output/lingualens-v<版本>.zip
 pnpm fake-server &  # 假 OpenAI 兼容服务器（:18734，--fail-json 可模拟不支持 json_object 的端点）
 pnpm e2e            # 真机 E2E：16 项断言（配置→弹窗→全文注入→缓存→文章→无 key 兜底→讲解卡），截图存 notes/e2e/
+pnpm build:userscript  # 油猴 Lite 版（单文件 IIFE + UserScript 元数据头）→ dist-userscript/
+pnpm e2e:userscript    # 油猴版 E2E：GM stub 注入真实页面跑划词/注入/讲解卡/缓存（9 项断言）
 ```
 
 架构要点（详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)）：

@@ -16,7 +16,9 @@
     "lint": "eslint src tests",
     "format": "prettier --write src tests",
     "fake-server": "node scripts/fake-ai-server.mjs",
-    "e2e": "node tests/e2e/smoke.mjs"
+    "e2e": "node tests/e2e/smoke.mjs",
+    "build:userscript": "vite build --config vite.userscript.config.ts && node scripts/userscript-header.mjs",
+    "e2e:userscript": "node tests/userscript/run.mjs"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
