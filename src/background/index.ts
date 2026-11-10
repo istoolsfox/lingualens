@@ -4,6 +4,7 @@
 // ============================================================
 
 import { guessMode } from '../ai/router';
+import { isNewer } from '../shared/version';
 import {
   PORT_NAME,
   isMsg,
@@ -348,6 +349,58 @@ chrome.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
     );
   return true; // 异步响应
 });
+
+// ---------- 自动更新 ----------
+// ① 磁盘热重载：每分钟比对磁盘上的 manifest 版本与运行中版本——
+//    只要 dist 文件夹被更新（构建/脚本覆盖），扩展在 60 秒内自动重载，
+//    用户不再需要"删除再安装"（reload 保留全部本地数据；已打开页面刷新后生效）
+// ② 远程检查：每 6 小时拉一次服务器版本清单，有新版则标记，弹窗里提示一键下载
+
+const UPDATE_FLAG_KEY = 'll_update_available';
+const REMOTE_CHECK_URL = 'https://toolsfox.top/downloads/lingualens-version.json';
+const WATCH_DISK_ALARM = 'll-watch-disk';
+const CHECK_REMOTE_ALARM = 'll-check-remote';
+
+async function watchDiskVersion(): Promise<void> {
+  try {
+    const res = await fetch(chrome.runtime.getURL('manifest.json'));
+    const disk = (await res.json()) as { version?: string };
+    const diskV = disk.version ?? '';
+    const runV = chrome.runtime.getManifest().version;
+    // 只在磁盘版本"更新"时重载（防手改降级造成反复重载）
+    if (diskV && isNewer(diskV, runV)) {
+      // SW 日志是自动重载触发链的唯一观测点（verify-selfupdate 依赖），豁免 no-console
+      // eslint-disable-next-line no-console
+      console.info(`[LL] 磁盘版本 ${diskV} > 运行中 ${runV}，自动重载扩展`);
+      chrome.runtime.reload();
+    }
+  } catch {
+    // 磁盘读取失败（构建中的瞬间态）等下个周期再比
+  }
+}
+
+async function checkRemoteVersion(): Promise<void> {
+  try {
+    const res = await fetch(REMOTE_CHECK_URL, { cache: 'no-store' });
+    const info = (await res.json()) as { version?: string; url?: string };
+    if (!info.version) return;
+    if (isNewer(info.version, chrome.runtime.getManifest().version)) {
+      await chrome.storage.local.set({
+        [UPDATE_FLAG_KEY]: { version: info.version, url: info.url ?? '', checkedAt: Date.now() },
+      });
+    }
+  } catch {
+    // 服务器不可达 / 无网络：静默，下个周期再查
+  }
+}
+
+chrome.alarms.create(WATCH_DISK_ALARM, { periodInMinutes: 1 });
+chrome.alarms.create(CHECK_REMOTE_ALARM, { periodInMinutes: 360 });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === WATCH_DISK_ALARM) void watchDiskVersion();
+  if (a.name === CHECK_REMOTE_ALARM) void checkRemoteVersion();
+});
+void checkRemoteVersion(); // SW 启动即查一次
 
 // ---------- 生命周期 ----------
 

@@ -66,9 +66,34 @@ async function main(): Promise<void> {
   const header = el('div', 'header');
   header.innerHTML = `
     <div class="logo">L</div>
-    <div class="title">LinguaLens</div>
+    <div class="title">LinguaLens<span class="subtitle">AI 英语深度阅读</span></div>
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">检查中…</span></div>`;
   app.appendChild(header);
+
+  // ---- 更新提示条（远程检查发现新版时出现；解压覆盖后磁盘热重载 1 分钟自动生效） ----
+  const UPDATE_FLAG = 'll_update_available';
+  const updRaw = (await chrome.storage.local.get(UPDATE_FLAG))[UPDATE_FLAG] as
+    { version?: string; url?: string } | undefined;
+  const runVer = chrome.runtime.getManifest().version;
+  if (updRaw?.version && updRaw.version !== runVer) {
+    const updateRow = el('div', 'update-row');
+    updateRow.innerHTML = `<span class="upd-text">新版本 v${updRaw.version} 可用</span><button class="upd-dl">下载更新</button><button class="upd-skip" title="忽略">✕</button>`;
+    app.appendChild(updateRow);
+    updateRow.querySelector('.upd-dl')?.addEventListener('click', () => {
+      if (updRaw.url) void chrome.downloads.download({ url: updRaw.url });
+      const t = document.getElementById('tip') as HTMLElement | null;
+      if (t) {
+        t.textContent = '已开始下载，解压覆盖到扩展文件夹后 1 分钟内自动生效';
+        t.className = 'tip ok';
+        t.style.display = 'block';
+        setTimeout(() => (t.style.display = 'none'), 6000);
+      }
+    });
+    updateRow.querySelector('.upd-skip')?.addEventListener('click', () => {
+      void chrome.storage.local.remove(UPDATE_FLAG);
+      updateRow.remove();
+    });
+  }
 
   // ---- 语言对（双盒 + 箭头） ----
   const langPair = el('div', 'lang-pair');

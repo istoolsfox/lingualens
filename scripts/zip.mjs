@@ -2,7 +2,7 @@
 // scripts/zip.mjs —— 打包 dist 为可上传的 zip（零依赖）
 // ============================================================
 
-import { deflateSync } from 'node:zlib';
+import { deflateRawSync } from 'node:zlib';
 import { readdirSync, statSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
 const outDir = join(root, 'output');
 mkdirSync(outDir, { recursive: true });
-const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+// 版本单一真源 = public/manifest.json（zip 产物名跟随它）
+const { version } = JSON.parse(readFileSync(join(root, 'public', 'manifest.json'), 'utf8'));
 
 function crc32Table() {
   const t = new Int32Array(256);
@@ -48,7 +49,8 @@ for (const f of files) {
   const name = relative(dist, f).replaceAll('\\', '/');
   const data = readFileSync(f);
   const nameBuf = Buffer.from(name, 'utf8');
-  const comp = deflateSync(data);
+  // ZIP method 8 要求裸 deflate（deflateSync 的 zlib 包裹会让解压端必炸）
+  const comp = deflateRawSync(data);
   const useDeflate = comp.length < data.length;
   const payload = useDeflate ? comp : data;
   const crc = crc32(data);
@@ -59,7 +61,7 @@ for (const f of files) {
   local.writeUInt16LE(0, 6);
   local.writeUInt16LE(useDeflate ? 8 : 0, 8);
   local.writeUInt16LE(0, 10); // time
-  local.writeUInt16LE(0x5200 >> 0 ? 0 : 0, 12); // date (0 ok)
+  local.writeUInt16LE(0, 12); // date (0 ok)
   local.writeUInt32LE(crc, 14);
   local.writeUInt32LE(payload.length, 18);
   local.writeUInt32LE(data.length, 22);

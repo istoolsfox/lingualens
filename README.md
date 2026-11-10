@@ -22,6 +22,20 @@
 
 要求 Chrome 114+（Side Panel API）。
 
+## 自动更新（免删除重装）
+
+**版本单一真源 = `public/manifest.json`**（`APP_VERSION` 常量与 zip 产物名跟随它，单测有同步断言）。两条更新通道都围绕它工作：
+
+1. **磁盘热重载（本地开发/更新首选）**：扩展每分钟自检 `dist/manifest.json` 的磁盘版本，一旦比运行中版本新（构建完成或被 `update.sh` 覆盖），60 秒内自动 `chrome.runtime.reload()`——**零点击、本地数据全部保留**，已打开的页面刷新后生效。验证脚本：`node scripts/verify-selfupdate.mjs`。
+2. **远程检查**：每 6 小时拉一次 `https://toolsfox.top/downloads/lingualens-version.json`，有新版时弹窗顶部出现「新版本可用」条（下载 + 忽略）。
+
+操作脚本：
+
+- 发版：`bash scripts/release.sh`——构建 → 打 zip → 上传 zip + version.json 到服务器 `/var/www/downloads/`
+- 更新本机扩展：`bash scripts/update.sh`——拉最新 zip 覆盖 `dist/` → 等 60 秒自动生效
+
+平台边界：Chrome 商店渠道的自动更新走商店机制（本扩展未上架）；命令行 `--load-extension` 方式加载的扩展在 Chromium 137+ 上 reload 后无法重新注册（测试环境已知怪癖），开发者模式「加载已解压」不受影响。
+
 ## 配置说明（小白三步）
 
 1. **选厂商**：DeepSeek / 硅基流动 / 智谱 / Kimi / 阿里百炼 / OpenAI / Ollama 本机 / 自定义（预设自动填好地址）

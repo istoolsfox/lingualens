@@ -68,6 +68,66 @@ body {
   font-size: 15px;
   font-weight: 700;
   flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.subtitle {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- 更新提示条 ---- */
+.update-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-soft);
+  border: 0.5px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 10px 7px 12px;
+  margin-bottom: 8px;
+}
+.upd-text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+.upd-dl {
+  appearance: none;
+  border: 0;
+  background: var(--blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex: none;
+}
+.upd-dl:hover {
+  background: var(--blue-dark);
+}
+.upd-skip {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex: none;
+  font-family: var(--font);
+}
+.upd-skip:hover {
+  color: var(--ink-2);
 }
 .status {
   display: flex;

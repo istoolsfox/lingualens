@@ -3,7 +3,8 @@
 // ============================================================
 
 export const APP_NAME = 'LinguaLens';
-export const APP_VERSION = '0.1.0';
+/** 与 public/manifest.json 的 version 保持一致（tests/unit/version.test.ts 有同步断言） */
+export const APP_VERSION = '0.6.2';
 
 /** 默认上下文截取长度（选区前后各 N 字符） */
 export const DEFAULT_CONTEXT_LENGTH = 300;

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LinguaLens — AI 英语深度阅读助手",
-  "version": "0.5.3",
+  "version": "0.6.2",
   "description": "选中即精读：不止翻译，讲透英语为什么这样表达。单词构词、句中语法作用、意群拆解、双轨翻译、表达习惯与中英差异。",
   "minimum_chrome_version": "114",
   "icons": {
@@ -10,7 +10,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "LinguaLens",
+    "default_title": "LinguaLens · AI 英语深度阅读助手",
     "default_popup": "popup.html"
   },
   "background": {
@@ -32,7 +32,7 @@
       "all_frames": false
     }
   ],
-  "permissions": ["storage", "sidePanel", "scripting", "contextMenus"],
+  "permissions": ["storage", "sidePanel", "scripting", "contextMenus", "alarms", "downloads"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "commands": {
     "translate-article": {
